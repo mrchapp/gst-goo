@@ -138,9 +138,27 @@ gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 		GST_GOO_AUDIO_FILTER (g_object_get_data (G_OBJECT (data), "gst"));
 	g_assert (self != NULL);
 	GstGooAudioFilterPrivate* priv = GST_GOO_AUDIO_FILTER_GET_PRIVATE (self);
+	GstBuffer* gst_buffer = NULL;
 
+#if 0
 	GstBuffer* gst_buffer = gst_goo_buffer_new ();
 	gst_goo_buffer_set_data (gst_buffer, component, buffer);
+#endif
+
+	if (GST_GOO_AUDIO_FILTER (self)->dasf_mode)
+	{
+		gst_buffer = gst_goo_buffer_new ();
+		gst_goo_buffer_set_data (gst_buffer, component, buffer);
+	}
+	else
+	{
+		gst_buffer = gst_buffer_new_and_alloc (buffer->nFilledLen);
+		memmove (GST_BUFFER_DATA (gst_buffer),
+			buffer->pBuffer, buffer->nFilledLen);
+		goo_component_release_buffer (component, buffer);
+		
+	}
+	
 	priv->outcount++;
 
 	/** FIXME GStreamer should not insert the header.  OMX component should take
@@ -150,7 +168,15 @@ gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 
 	gst_goo_audio_filter_timestamp_buffer (self, gst_buffer, buffer);
 
+	GST_BUFFER_DURATION (gst_buffer) = self->duration;
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
+	GST_BUFFER_TIMESTAMP (gst_buffer) = self->audio_timestamp;
+	
+	if (self->audio_timestamp != -1)
+	{
+		self->audio_timestamp += self->duration;
+	}
+	
 	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
 	gst_pad_push (self->srcpad, gst_buffer);
 
@@ -317,6 +343,12 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT)) {
 		gst_goo_adapter_clear (adapter);
 	}
+	
+	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+	{
+		GST_GOO_AUDIO_FILTER (self)->audio_timestamp = 
+			GST_BUFFER_TIMESTAMP (buffer);
+	}
 
 	if (self->seek_active == TRUE)
 	{
@@ -444,6 +476,7 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 	if (goo_port_is_tunneled (self->outport))
 	{
+		GST_DEBUG_OBJECT (self, "Outport is tunnelded");
 		/** @todo send a ghost buffer */
 		GstBuffer *ghost_buffer = (GstBuffer*) gst_ghost_buffer_new ();
 		GST_BUFFER_TIMESTAMP (ghost_buffer) = timestamp;

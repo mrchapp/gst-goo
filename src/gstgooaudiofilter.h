@@ -59,6 +59,7 @@ struct _GstGooAudioFilter
 	gboolean nbamr_mime;
 	gboolean wbamr_mime;
 	gboolean seek_active;
+	gboolean dasf_mode;
 	gint64 seek_time;
 
 	/*< protected >*/

@@ -64,10 +64,14 @@ struct _GstGooDecMp3Private
 #define BITPERSAMPLE_DEFAULT 16
 #define CHANNELS_DEFAULT 2
 #define SAMPLERATE_DEFAULT 44100
-#define INPUT_BUFFERSIZE_DEFAULT 4 * 1024
-#define OUTPUT_BUFFERSIZE_DEFAULT 4 * 1024
-#define NUM_INPUT_BUFFERS_DEFAULT 1
-#define NUM_OUTPUT_BUFFERS_DEFAULT 1
+#define INPUT_BUFFERSIZE_DEFAULT 2304
+/*#define INPUT_BUFFERSIZE_DEFAULT 4 * 1024*/
+#define OUTPUT_BUFFERSIZE_DEFAULT 36864
+/*#define OUTPUT_BUFFERSIZE_DEFAULT 4 * 1024*/
+#define NUM_INPUT_BUFFERS_DEFAULT 2
+/*#define NUM_INPUT_BUFFERS_DEFAULT 1*/
+#define NUM_OUTPUT_BUFFERS_DEFAULT 2
+/*#define NUM_OUTPUT_BUFFERS_DEFAULT 1*/
 #define DEFAULT_WIDTH 16
 #define DEFAULT_DEPTH 16
 #define LAYER_DEFAULT 3
@@ -605,6 +609,7 @@ gst_goo_decmp3_sink_setcaps (GstPad *pad, GstCaps *caps)
 	guint sample_rate = SAMPLERATE_DEFAULT;
 	guint channels = CHANNELS_DEFAULT;
 	guint layer = LAYER_DEFAULT;
+	guint factor;
 
 	self = GST_GOO_DECMP3 (GST_PAD_PARENT (pad));
 	component = (GooComponent *) GST_GOO_AUDIO_FILTER (self)->component;
@@ -621,6 +626,11 @@ gst_goo_decmp3_sink_setcaps (GstPad *pad, GstCaps *caps)
 	gst_structure_get_int (structure, "rate", &sample_rate);
 	gst_structure_get_int (structure, "channels", &channels);
 	gst_structure_get_int (structure, "layer", &layer);
+	
+	factor = 0.02 * channels * sample_rate;
+	GST_GOO_AUDIO_FILTER (self)->duration = 
+		gst_util_uint64_scale_int (GST_SECOND, factor, 
+			sample_rate * channels);
 
 	g_object_set(component, "layer", layer, NULL);
 	GOO_TI_MP3DEC_GET_OUTPUT_PARAM (component)->nChannels = channels;
@@ -637,12 +647,32 @@ gst_goo_decmp3_src_setcaps (GstPad *pad, GstCaps *caps)
 {
 	GstStructure *structure;
 	GstGooDecMp3 *self;
+	GstElement* next_element;
 	GooPort *outport;
+	GstPad* peer;
 	guint width = DEFAULT_WIDTH;
 	guint depth = DEFAULT_DEPTH;
+	gchar* str_peer;
+	gchar dasf[] = "dasf";
+	gint comp_res;
 
 	self = GST_GOO_DECMP3 (GST_PAD_PARENT (pad));
 	outport = (GooPort *) GST_GOO_AUDIO_FILTER (self)->outport;
+	peer = gst_pad_get_peer (pad);
+	next_element = GST_ELEMENT (gst_pad_get_parent (peer));
+	str_peer = gst_element_get_name (next_element);
+	comp_res = strncmp (dasf, str_peer, 4);
+    
+	if (comp_res == 0)
+	{
+		GST_DEBUG_OBJECT (self, "DASF-SINK Activated: MP3 Dec");
+		GST_GOO_AUDIO_FILTER (self)->dasf_mode = TRUE;
+	}
+	else
+	{
+		GST_DEBUG_OBJECT (self, "FILE-TO-FILE Activated: MP3 Dec");
+		GST_GOO_AUDIO_FILTER (self)->dasf_mode = FALSE;
+	}
 
 	GST_DEBUG_OBJECT (self, "src_setcaps");
 	GST_LOG ("caps are %" GST_PTR_FORMAT, caps);
@@ -652,7 +682,9 @@ gst_goo_decmp3_src_setcaps (GstPad *pad, GstCaps *caps)
 
 	gst_structure_get_int (structure, "width", &width);
 	gst_structure_get_int (structure, "depth", &depth);
+	
+	gst_object_unref (next_element);
+	gst_object_unref (peer);
 
 	return gst_pad_set_caps (pad, caps);
-
 }
