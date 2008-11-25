@@ -101,9 +101,9 @@ struct _GstGooDecJpegPrivate
 #define SCALE_DEFAULT GOO_TI_JPEGDEC_SCALE_NONE
 #define SLICING_DEFAULT 0
 #define MIN_WIDTH  16
-#define MAX_WIDTH  4096
+#define MAX_WIDTH  2147483647
 #define MIN_HEIGHT 16
-#define MAX_HEIGHT 4096
+#define MAX_HEIGHT 2147483647
 #define MAX_SECTIONS 20
 
 #define M_SOF0	0xC0		/* nStart Of Frame N */
@@ -238,7 +238,7 @@ gst_decjpeg_get_color_format (const guint8* data)
 
 	if (temp == 4 && H[0] == 2)
 	{
-		return OMX_COLOR_FormatYUV420Planar;
+		return OMX_COLOR_FormatYUV420PackedPlanar;
 	}
 
 	if (temp == 4 && H[0] == 4)
@@ -777,7 +777,7 @@ get_possible_outcaps (GstGooDecJpeg* self)
 
         if (priv->in_color != OMX_COLOR_FormatYUV444Interleaved)
         {
-		/* OMX_COLOR_FormatYUV420Planar */
+		/* OMX_COLOR_FormatYUV420PackedPlanar */
 		gst_caps_append_structure (caps,
                          gst_structure_new ("video/x-raw-yuv",
                                             "format", GST_TYPE_FOURCC,

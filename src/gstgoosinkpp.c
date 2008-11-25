@@ -236,7 +236,7 @@ gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 			switch (fourcc)
 			{
 			case GST_MAKE_FOURCC ('I', '4', '2', '0'):
-				priv->color = OMX_COLOR_FormatYUV420Planar;
+				priv->color = OMX_COLOR_FormatYUV420PackedPlanar;
 				break;
 			case GST_MAKE_FOURCC ('Y', 'U', 'Y', '2'):
 				priv->color = OMX_COLOR_FormatYCbYCr;

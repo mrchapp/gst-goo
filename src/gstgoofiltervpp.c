@@ -90,7 +90,7 @@ struct _GstGooFilterVPPPrivate
 #define DEFAULT_OUTPUT_WIDTH  176
 #define DEFAULT_OUTPUT_HEIGHT 144
 #define DEFAULT_FRAMERATE     15
-#define DEFAULT_INPUT_COLOR_FORMAT  OMX_COLOR_FormatYUV420Planar
+#define DEFAULT_INPUT_COLOR_FORMAT  OMX_COLOR_FormatYUV420PackedPlanar
 #define DEFAULT_OUTPUT_COLOR_FORMAT OMX_COLOR_FormatCbYCrY
 #define DEFAULT_CROP_LEFT   0	/* No cropping in X axis */
 #define DEFAULT_CROP_TOP    0	/* No cropping in Y axis */
@@ -327,7 +327,7 @@ parse_caps (GstCaps* caps, gint* format, gint* width, gint* height)
 				*format = OMX_COLOR_FormatYCbYCr;
 				break;
 			case GST_MAKE_FOURCC ('I', '4', '2', '0'):
-				*format = OMX_COLOR_FormatYUV420Planar;
+				*format = OMX_COLOR_FormatYUV420PackedPlanar;
 				break;
 			case GST_MAKE_FOURCC ('U', 'Y', 'V', 'Y'):
 				*format = OMX_COLOR_FormatCbYCrY;

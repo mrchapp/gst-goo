@@ -111,7 +111,8 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 		guint sps_len=0, pps_len=0;
 		char *buff, *pSPS, *pPPS, *m_pDecoderSpecific;
 		GstBuffer *new_buf;
-
+	        guint size, NAL_size, Buf_offset; 	// JC@092008 Variables for changing the NAL segments headers
+	       
 		buff = GST_BUFFER_DATA (GST_GOO_VIDEODEC(self)->video_header);
 
 		/* TODO: verify header == 1 */
@@ -256,9 +257,59 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 		m_pDecoderSpecific[pos++] = 0;
 		m_pDecoderSpecific[pos++] = 0;
 		m_pDecoderSpecific[pos++] = 1;
-
+		
+		GST_DEBUG_OBJECT (self, "WORKAROUND Make it look like MP4Box pos=%d, ",pos);
+		
+		
 		/* WORKAROUND: Make it look like MP4Box */
 		GST_DEBUG_OBJECT (self, "working around stuff 1");
+		
+		
+		
+		/**********************  JC@092008  **************************/
+		/* Replacement of NAL segment headers                        */
+		/*    Search for the next NAL header while replacing the     */	
+		/*    the current one with 0x0001                            */	
+		/*************************************************************/		         
+		       
+		size=0; NAL_size=0; Buf_offset=0;
+		
+		size = GST_BUFFER_SIZE (buf);
+		GST_DEBUG ("1st. GST_BUFFER SIZE: %d",size);
+		
+		while (Buf_offset < size )
+		{
+		
+			NAL_size = ( (GST_BUFFER_DATA (buf)[0 + Buf_offset]*16777216)+
+			             (GST_BUFFER_DATA (buf)[1 + Buf_offset]*65536)+
+			             (GST_BUFFER_DATA (buf)[2 + Buf_offset]*256)+
+			             (GST_BUFFER_DATA (buf)[3 + Buf_offset]) );
+		 
+		/* Prints */ 
+		#if 0
+		 	{           
+        			GST_DEBUG ("1st. BUFFER_DATA 1: %x",GST_BUFFER_DATA (buf)[0 + Buf_offset]);
+		          	GST_DEBUG ("1st. BUFFER_DATA 2: %x",GST_BUFFER_DATA (buf)[1 + Buf_offset]);
+		          	GST_DEBUG ("1st. BUFFER_DATA 3: %x",GST_BUFFER_DATA (buf)[2 + Buf_offset]);
+		          	GST_DEBUG ("1st. BUFFER_DATA 4: %x",GST_BUFFER_DATA (buf)[3 + Buf_offset]);
+				GST_DEBUG ("NAL SIZE: %d",NAL_size);
+			}
+		#endif					           
+		
+			GST_BUFFER_DATA (buf)[0 + Buf_offset] = 0;
+			GST_BUFFER_DATA (buf)[1 + Buf_offset] = 0;
+			GST_BUFFER_DATA (buf)[2 + Buf_offset] = 0;
+			GST_BUFFER_DATA (buf)[3 + Buf_offset] = 1;
+			
+
+			Buf_offset = Buf_offset + NAL_size + NALU_size_bytes;
+			//GST_DEBUG ("1st. BUFFER OFFSET: %d",Buf_offset);
+		
+		}				
+		
+		/*************************************************************/
+		
+ 
 
 		GST_BUFFER_DATA (buf) += 4;
 		GST_BUFFER_SIZE (buf) -= 4;
@@ -294,25 +345,71 @@ gst_goo_dech264_extra_buffer_processing (GstGooVideoFilter* filter, GstBuffer *b
 {
 
 	GstGooDecH264 *self = GST_GOO_DECH264 (filter);
-	static gboolean first_buffer = TRUE;
-
+	static gboolean first_buffer = TRUE; 
+	       guint size, NAL_size, Buf_offset, NALU_size_bytes; 	// JC@092008
+	
+	
 	GST_DEBUG ("Entering");
 
 	/** Workaround to make it look like the MP4Box
 	    extraction tool **/
 	if ( gst_goo_dech264_parsed_header == TRUE && !first_buffer )
 	{
-		GST_DEBUG ("GST_BUFFER DATA Chaning 4 bytes");
-
-		GST_BUFFER_DATA (buffer)[0] = 0;
-		GST_BUFFER_DATA (buffer)[1] = 0;
-		GST_BUFFER_DATA (buffer)[2] = 0;
-		GST_BUFFER_DATA (buffer)[3] = 1;
+		
+                /**********************  JC@092008  **************************/
+		/* Replacement of NAL segment headers                        */
+		/*    Search for the next NAL header while replacing the     */	
+		/*    the current one with 0x0001                            */	
+		/*************************************************************/	
+		
+                size=0; NAL_size=0; Buf_offset=0;  NALU_size_bytes=4;
+                
+                size = GST_BUFFER_SIZE (buffer);
+		GST_DEBUG ("GST_BUFFER SIZE: %d",size);
+		
+		while (Buf_offset < size )
+		{
+		
+			NAL_size = ( (GST_BUFFER_DATA (buffer)[0 + Buf_offset]*16777216)+
+			             (GST_BUFFER_DATA (buffer)[1 + Buf_offset]*65536)+
+			             (GST_BUFFER_DATA (buffer)[2 + Buf_offset]*256)+
+			             (GST_BUFFER_DATA (buffer)[3 + Buf_offset]) );
+		/* Prints */ 
+		#if 0
+		 	{ 		              
+		          	GST_DEBUG ("BUFFER_DATA 1: %x",GST_BUFFER_DATA (buffer)[0 + Buf_offset]);
+		          	GST_DEBUG ("BUFFER_DATA 2: %x",GST_BUFFER_DATA (buffer)[1 + Buf_offset]);
+		          	GST_DEBUG ("BUFFER_DATA 3: %x",GST_BUFFER_DATA (buffer)[2 + Buf_offset]);
+		          	GST_DEBUG ("BUFFER_DATA 4: %x",GST_BUFFER_DATA (buffer)[3 + Buf_offset]);
+				GST_DEBUG ("NAL SIZE: %d",NAL_size);
+			}
+		#endif		
+						           
+			GST_BUFFER_DATA (buffer)[0 + Buf_offset] = 0;
+			GST_BUFFER_DATA (buffer)[1 + Buf_offset] = 0;
+			GST_BUFFER_DATA (buffer)[2 + Buf_offset] = 0;
+			GST_BUFFER_DATA (buffer)[3 + Buf_offset] = 1;
+			
+							  // NALU_size_bytes (NAL header) considered to be 4 bytes long !!!!
+			Buf_offset = Buf_offset + NAL_size + NALU_size_bytes;    
+			//GST_DEBUG ("BUFFER OFFSET: %d",Buf_offset);
+		
+		}
 	}
 
 	first_buffer = FALSE;
 
 	GST_DEBUG ("Exit");
+
+#if 0
+        {
+                static FILE *out = NULL;
+                if(out == NULL)
+                        out = fopen("/tmp/dump", "w");
+                fwrite(GST_BUFFER_DATA(buffer), GST_BUFFER_SIZE(buffer), 1, out);
+                fflush(out);
+        }
+#endif
 
 	return buffer;
 }

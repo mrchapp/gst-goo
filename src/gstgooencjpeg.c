@@ -275,7 +275,7 @@ gst_goo_encjpeg_setcaps (GstPad* pad, GstCaps* caps)
 		priv->colorformat = OMX_COLOR_FormatCbYCrY;
 		break;
 	case GST_MAKE_FOURCC ('I', '4', '2', '0'):
-		priv->colorformat = OMX_COLOR_FormatYUV420Planar;
+		priv->colorformat = OMX_COLOR_FormatYUV420PackedPlanar;
 		break;
 	default:
 		GST_ERROR ("format not supported");

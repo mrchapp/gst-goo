@@ -30,6 +30,7 @@
 #include "gstgoodecmp3.h"
 #include "gstgoodecwma.h"
 #include "gstgoodecpcm.h"
+#include "gstgoodecimaadpcm.h"
 #include "gstgoodecgsmhr.h"
 #include "gstgoodecg722.h"
 #include "gstgoodecg711.h"
@@ -40,6 +41,7 @@
 #include "gstgooencgsmfr.h"
 #include "gstgooencaac.h"
 #include "gstgoodecmpeg4.h"
+#include "gstgoodecspark.h"
 #include "gstdasfsrc.h"
 #include "gstdasfsink.h"
 #ifdef TI_CAMERA
@@ -70,6 +72,7 @@ static struct _element_entry _elements[] = {
 	{ "goodec_mp3", GST_RANK_PRIMARY, gst_goo_decmp3_get_type },
 	{ "goodec_wma", GST_RANK_PRIMARY, gst_goo_decwma_get_type },
 	{ "goodec_pcm", GST_RANK_PRIMARY, gst_goo_decpcm_get_type },
+	{ "goodec_imaadpcm", GST_RANK_PRIMARY, gst_goo_decimaadpcm_get_type },
 	{ "goodec_gsmhr", GST_RANK_PRIMARY, gst_goo_decgsmhr_get_type },
 	{ "goodec_g722", GST_RANK_PRIMARY, gst_goo_decg722_get_type },
 	{ "goodec_gsmfr", GST_RANK_PRIMARY, gst_goo_decgsmfr_get_type },
@@ -81,6 +84,7 @@ static struct _element_entry _elements[] = {
 	{ "gooenc_gsmfr", GST_RANK_PRIMARY, gst_goo_encgsmfr_get_type },
 	{ "gooenc_aac", GST_RANK_PRIMARY, gst_goo_encaac_get_type },
 	{ "goodec_mpeg4", GST_RANK_PRIMARY, gst_goo_decmpeg4_get_type },
+	{ "goodec_spark", GST_RANK_PRIMARY, gst_goo_decspark_get_type },
 	{ "dasfsrc", GST_RANK_PRIMARY, gst_dasf_src_get_type },
 	{ "dasfsink", GST_RANK_PRIMARY, gst_dasf_sink_get_type },
 #ifdef TI_CAMERA

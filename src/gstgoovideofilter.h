@@ -61,6 +61,8 @@ struct _GstGooVideoFilter
 	GooPort* inport;
 	GooPort* outport;
 	GstGooAdapter* adapter;
+	gboolean seek_active;
+	gint64 seek_time;
 
 	/*< protected >*/
 	GstPad* sinkpad;

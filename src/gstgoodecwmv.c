@@ -63,7 +63,147 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 				"height = (int) [16, 4096], "
 				"framerate = (GstFraction) [1/1, 1000/1]"));
 
+static void
+gst_goo_decwmv_wait_for_done (GstGooVideoFilter* self)
+{
+	g_assert (self != NULL);
 
+	/* flushing the last buffers in adapter */
+
+	OMX_BUFFERHEADERTYPE* omx_buffer;
+	OMX_PARAM_PORTDEFINITIONTYPE* param =
+		GOO_PORT_GET_DEFINITION (self->inport);
+	GstGooAdapter* adapter = self->adapter;
+	int omxbufsiz = param->nBufferSize;
+	int avail = gst_goo_adapter_available (adapter);
+
+	if (goo_port_is_tunneled (self->inport))
+	{
+		GST_INFO ("Input port is tunneled: Setting done");
+		goo_component_set_done (self->component);
+		return;
+	}
+
+	if (avail < omxbufsiz && avail > 0)
+	{
+		GST_INFO ("Marking EOS buffer");
+		omx_buffer = goo_port_grab_buffer (self->inport);
+		GST_DEBUG ("Peek to buffer %d bytes", avail);
+		gst_goo_adapter_peek (adapter, avail, omx_buffer);
+		omx_buffer->nFilledLen = avail;
+		/* let's send the EOS flag right now */
+		omx_buffer->nFlags |= OMX_BUFFERFLAG_EOS;
+		goo_component_release_buffer (self->component, omx_buffer);
+	}
+	else if (avail == 0)
+	{
+		GST_DEBUG ("Sending empty buffer with EOS flag in it");
+		goo_component_send_eos (self->component);
+	}
+	else
+	{
+		/* For some reason the adapter didn't extract all
+		   possible buffers */
+		GST_ERROR ("Adapter algorithm error!");
+		goo_component_send_eos (self->component);
+	}
+
+	gst_goo_adapter_clear (adapter);
+
+	GST_INFO ("Waiting for done signal");
+	if (goo_port_is_tunneled (self->outport))
+	{
+		GST_INFO ("Outport is tunneled: Setting done");
+		goo_component_set_done (self->component);
+	}
+	else
+	{
+		GST_INFO ("Waiting for done signal");
+		goo_component_wait_for_done (self->component);
+	}
+
+	return;
+}
+
+static gboolean
+gst_goo_decwmv_src_event (GstPad* pad, GstEvent* event)
+{
+	GST_LOG("");
+	
+	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
+	
+	gboolean ret;
+	
+	g_assert (self->component != NULL);
+	
+	switch (GST_EVENT_TYPE (event))
+	{
+	case GST_EVENT_SEEK:
+		GST_INFO ("Seek Event");
+		self->seek_active = TRUE;
+		ret = gst_pad_push_event (self->sinkpad, event);
+		break;
+	default:
+		ret = FALSE;
+		break;
+	}
+
+	gst_object_unref (self);
+	return ret;
+}
+
+static gboolean
+gst_goo_decwmv_sink_event (GstPad* pad, GstEvent* event)
+{
+	GST_LOG ("");
+	
+	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
+	
+	gboolean ret;
+
+	g_assert (self->component != NULL);
+
+	switch (GST_EVENT_TYPE (event))
+	{
+	case GST_EVENT_EOS:
+		GST_INFO ("EOS event");
+		gst_goo_decwmv_wait_for_done (self);
+		ret = gst_pad_push_event (self->srcpad, event);
+		break;
+	case GST_EVENT_FLUSH_START:
+		GST_INFO ("Flush Start Event");
+		goo_component_set_state_pause(self->component);
+		goo_component_flush_all_ports(self->component);
+		ret = gst_pad_push_event (self->srcpad, event);
+		break;
+	case GST_EVENT_FLUSH_STOP:
+		GST_INFO ("Flush Stop Event");
+		goo_component_set_state_executing(self->component);
+		ret = gst_pad_push_event (self->srcpad, event);
+		break;
+	case GST_EVENT_NEWSEGMENT:
+	{
+		GST_INFO ("Newsegment Event");
+		gboolean update;
+		GstFormat fmt;
+		gint64 stop, time;
+		gdouble rate, arate;
+
+		gst_event_parse_new_segment_full (event, &update, &rate, &arate,
+			&fmt, &self->seek_time, &stop, &time);
+		GST_DEBUG_OBJECT (self, "New Start Time %"GST_TIME_FORMAT,
+			GST_TIME_ARGS (self->seek_time));
+		ret = gst_pad_push_event (self->srcpad, event);
+		break;
+	}
+	default:
+		ret = gst_pad_event_default (pad, event);
+		break;
+	}
+
+	gst_object_unref (self);
+	return ret;
+}
 
 static void
 gst_goo_decwmv_base_init (gpointer g_klass)
@@ -232,6 +372,9 @@ gst_goo_decwmv_init (GstGooDecWMV* self, GstGooDecWMVClass* klass)
 	/** Use the PARENT's callback function **/
 	goo_port_set_process_buffer_function
 		(GST_GOO_VIDEO_FILTER (self)->outport, gst_goo_video_filter_outport_buffer);
+	
+	gst_pad_set_event_function (GST_GOO_VIDEO_FILTER(self)->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_decwmv_sink_event));
+	gst_pad_set_event_function (GST_GOO_VIDEO_FILTER(self)->srcpad, GST_DEBUG_FUNCPTR (gst_goo_decwmv_src_event));
 
 	g_object_set_data (G_OBJECT (GST_GOO_VIDEO_FILTER (self)->component), "gst", self);
 	g_object_set_data (G_OBJECT (self), "goo", GST_GOO_VIDEO_FILTER (self)->component);

@@ -347,12 +347,13 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 	GstFlowReturn ret = GST_FLOW_OK;
 
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
+	gint64 buffer_stamp = GST_BUFFER_TIMESTAMP (buffer);
 
 	if (priv->incount == 0)
 	{
 		self->omx_normalize_timestamp	= GST2OMX_TIMESTAMP (timestamp);
 	}
-
+	
 	if (goo_port_is_tunneled (self->inport))
 	{
 		/* shall we send a ghost buffer here ? */
@@ -386,6 +387,23 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 		gst_goo_adapter_clear (adapter);
 	}
 
+	if (self->seek_active == TRUE)
+	{
+		if (buffer_stamp < self->seek_time)
+		{
+			GST_DEBUG_OBJECT (self, "Dropping buffer at %"GST_TIME_FORMAT, 
+				GST_TIME_ARGS (buffer_stamp));
+			gst_goo_adapter_clear (adapter);
+			goto done;
+		}
+		else
+		{
+			GST_DEBUG_OBJECT (self, "Continue buffer at %"GST_TIME_FORMAT, 
+				GST_TIME_ARGS (buffer_stamp));
+			self->seek_active = FALSE;
+		}
+	}
+	
 	if (priv->incount == 0 &&
 	    goo_component_get_state (self->component) == OMX_StateLoaded)
 	{
@@ -792,6 +810,7 @@ gst_goo_video_filter_init (GstGooVideoFilter* self, GstGooVideoFilterClass* klas
 	self->omx_normalize_timestamp = 0;
 	self->rate_numerator = 15;
 	self->rate_denominator = 1;
+	self->seek_active = FALSE;
 
 	/* GST */
 	GstPadTemplate* pad_template;

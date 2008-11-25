@@ -136,7 +136,7 @@ parse_out_caps (GstCaps* caps, gint* format, gint* width, gint* height)
 				*format = OMX_COLOR_FormatYCbYCr;
 				break;
 			case GST_MAKE_FOURCC ('I', '4', '2', '0'):
-				*format = OMX_COLOR_FormatYUV420Planar;
+				*format = OMX_COLOR_FormatYUV420PackedPlanar;
 				break;
 			case GST_MAKE_FOURCC ('U', 'Y', 'V', 'Y'):
 				*format = OMX_COLOR_FormatCbYCrY;

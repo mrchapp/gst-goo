@@ -274,6 +274,7 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 	static OMX_S64 omx_normalize_timestamp;
 
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
+	gint64 buffer_stamp = GST_BUFFER_TIMESTAMP (buffer);
 
 	if (priv->incount == 0)
 	{
@@ -315,6 +316,23 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 	/** @todo GstGooAdapter! */
 	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT)) {
 		gst_goo_adapter_clear (adapter);
+	}
+
+	if (self->seek_active == TRUE)
+	{
+		if (buffer_stamp < self->seek_time)
+		{
+			 GST_DEBUG_OBJECT (self, "Dropping buffer at %"GST_TIME_FORMAT, 
+				GST_TIME_ARGS (buffer_stamp));
+			gst_goo_adapter_clear (adapter);
+			goto done;
+		}
+		else
+		{
+			GST_DEBUG_OBJECT (self, "Continue buffer at %"GST_TIME_FORMAT, 
+				GST_TIME_ARGS (buffer_stamp));
+			self->seek_active = FALSE;
+		}
 	}
 
 	if (priv->incount == 0 &&
@@ -735,6 +753,7 @@ gst_goo_audio_filter_init (GstGooAudioFilter* self, GstGooAudioFilterClass* klas
 	priv->process_mode = DEFAULT_PROCESS_MODE;
 	self->nbamr_mime = FALSE;
 	self->wbamr_mime = FALSE;
+	self->seek_active = FALSE;
 
 	self->factory = goo_ti_component_factory_get_instance ();
 

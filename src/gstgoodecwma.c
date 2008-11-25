@@ -229,6 +229,30 @@ gst_goo_decwma_wait_for_done (GstGooAudioFilter* self)
 }
 
 static gboolean
+gst_goo_decwma_src_event (GstPad* pad, GstEvent* event)
+{
+	GST_LOG ("");
+
+	GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (gst_pad_get_parent (pad));
+	gboolean ret = FALSE;
+
+	switch (GST_EVENT_TYPE (event))
+	{
+		case GST_EVENT_SEEK:
+			GST_INFO ("Seek Event");
+			self->seek_active = TRUE;
+			ret = gst_pad_push_event (self->sinkpad, event);
+			break;
+		default:
+			ret = FALSE;
+			break;
+	}
+
+	gst_object_unref (self);
+	return ret;
+}
+
+static gboolean
 gst_goo_decwma_sink_event (GstPad* pad, GstEvent* event)
 {
 	GST_LOG ("");
@@ -246,6 +270,31 @@ gst_goo_decwma_sink_event (GstPad* pad, GstEvent* event)
 		gst_goo_decwma_wait_for_done (self);
 		ret = gst_pad_push_event (self->srcpad, event);
 		break;
+	case GST_EVENT_FLUSH_START:
+		GST_INFO ("Flush Start event");
+		goo_component_set_state_pause(self->component);
+		goo_component_flush_all_ports(self->component);
+		ret = gst_pad_push_event (self->srcpad, event);
+		break;
+	case GST_EVENT_FLUSH_STOP:
+		GST_INFO ("Flush Stop event");
+		goo_component_set_state_executing(self->component);
+		ret = gst_pad_push_event (self->srcpad, event);
+		break;
+	case GST_EVENT_NEWSEGMENT:
+	{
+		gboolean update;
+		GstFormat fmt;
+		gint stop, time;
+		gdouble rate, arate;
+
+		gst_event_parse_new_segment_full (event, &update, &rate, &arate,
+			&fmt, &self->seek_time, &stop, &time);
+		GST_DEBUG_OBJECT (self, "New Start Time %"GST_TIME_FORMAT,
+			GST_TIME_ARGS (self->seek_time));
+		ret = gst_pad_push_event (self->srcpad, event);
+		break;
+	}
 	default:
 		ret = gst_pad_event_default (pad, event);
 		break;
@@ -511,10 +560,13 @@ gst_goo_decwma_init (GstGooDecWma* self, GstGooDecWmaClass* klass)
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER(self)->sinkpad, gst_goo_decwma_sink_setcaps);
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER(self)->srcpad, gst_goo_decwma_src_setcaps);
 	gst_pad_set_event_function (GST_GOO_AUDIO_FILTER(self)->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_decwma_sink_event));
+	gst_pad_set_event_function (GST_GOO_AUDIO_FILTER(self)->srcpad, GST_DEBUG_FUNCPTR (gst_goo_decwma_src_event));
 
 	g_object_set_data (G_OBJECT (GST_GOO_AUDIO_FILTER (self)->component), "gst", self);
 	g_object_set_data (G_OBJECT (self), "goo", GST_GOO_AUDIO_FILTER (self)->component);
-	g_object_set(G_OBJECT (self), "process-mode", 1, NULL);
+	/* The Stream Mode does not work for this component.
+	 * Therefore, Frame Mode is the default.
+	g_object_set(G_OBJECT (self), "process-mode", 1, NULL);*/
 
         return;
 }

@@ -11,6 +11,7 @@ libgstgoo_la_SOURCES = \
 	gstgoodecmp3.c \
 	gstgoodecwma.c \
 	gstgoodecpcm.c \
+	gstgoodecimaadpcm.c \
 	gstgoodecgsmhr.c \
 	gstgoodecg722.c \
 	gstgoodecg711.c \
@@ -25,6 +26,7 @@ libgstgoo_la_SOURCES = \
 	gstdasfsink.c \
 	gstgoo.c \
 	gstgoodecmpeg4.c \
+	gstgoodecspark.c \
 	gstgoosem.c \
 	gstgooadapter.c \
 	gstgooencjpeg.c \
@@ -36,10 +38,10 @@ libgstgoo_la_SOURCES = \
 	gstgooench264.c \
 	gstgooench263.c \
 	gstgoosinkpp.c \
-       	gstgoofiltervpp.c \
+    gstgoofiltervpp.c \
 	gstgoodecmpeg2.c \
 	gstgoovideofilter.c \
-        gstgoovideodec.c \
+    gstgoovideodec.c \
 	gstgoovideoenc.c \
 	gstgooutils.c \
 	gstgoodecgsmfr.c
@@ -71,6 +73,7 @@ noinst_HEADERS = \
 	gstgoodecmp3.h \
 	gstgoodecwma.h \
 	gstgoodecpcm.h \
+	gstgoodecimaadpcm.h \
 	gstgoodecgsmhr.h \
 	gstgoodecg722.h \
 	gstgoodecg711.h \
@@ -84,6 +87,7 @@ noinst_HEADERS = \
 	gstdasfsrc.h \
 	gstdasfsink.h \
 	gstgoodecmpeg4.h \
+	gstgoodecspark.h \
 	gstgoosem.h \
 	gstgooadapter.h \
 	gstgooencjpeg.h \
@@ -98,7 +102,7 @@ noinst_HEADERS = \
 	gstgoofiltervpp.h \
 	gstgoodecmpeg2.h \
 	gstgoovideofilter.h \
-        gstgoovideodec.h \
+    gstgoovideodec.h \
 	gstgoovideoenc.h \
 	gstgooutils.h \
 	gstgoodecgsmfr.h

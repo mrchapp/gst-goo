@@ -58,6 +58,8 @@ struct _GstGooAudioFilter
 	GstGooAdapter* adapter;
 	gboolean nbamr_mime;
 	gboolean wbamr_mime;
+	gboolean seek_active;
+	gint64 seek_time;
 
 	/*< protected >*/
 	GstPad* sinkpad;
