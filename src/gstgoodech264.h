@@ -24,6 +24,7 @@
 #define __GST_GOO_DECH264_H__
 
 #include "gstgoovideodec.h"
+#include <goo-ti-h264dec.h>
 
 G_BEGIN_DECLS
 
