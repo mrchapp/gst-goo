@@ -512,7 +512,7 @@ gst_goo_dech264_extra_buffer_processing (GstGooVideoFilter* filter, GstBuffer *b
 
 	GST_DEBUG ("Exit");
 
-#if 1
+#if 0
         {
                 static FILE *out = NULL;
                 if(out == NULL)
