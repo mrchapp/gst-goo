@@ -143,7 +143,8 @@ gst_goo_sinkpp_sync (GstGooSinkPP *self)
 
 	/* inport */
 	{
-		param->format.video.xFramerate = priv->framerate;
+		param->format.video.xFramerate = (priv->framerate) << 16 ;
+		GST_DEBUG_OBJECT (self, "framerate = %d  xFramerate  = %d", priv->framerate, param->format.video.xFramerate);
 
 		g_return_val_if_fail (GST_VIDEO_SINK_WIDTH (self) > 0, FALSE);
 		param->format.video.nFrameWidth = GST_VIDEO_SINK_WIDTH (self);
