@@ -69,7 +69,7 @@ static GstStaticPadTemplate sink_factory =
                 GST_PAD_SINK,
                 GST_PAD_ALWAYS,
 		GST_STATIC_CAPS ("video/x-raw-yuv, "
-				"format = (fourcc) { YUY2, I420 }, "
+				"format = (fourcc) { YUY2, I420, UYVY }, "
 				"width = (int) [16, 4096], "
 				"height = (int) [16, 4096], "
 				"framerate = (GstFraction) [1/1, 60/1]"));
