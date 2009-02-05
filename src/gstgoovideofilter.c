@@ -302,9 +302,10 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 	/** Configure the next component tunneled port since we won't
 		have the caps configured by then.
 		@Todo: Change this to find which port is actually tunneled **/
-	{
+	
 		GooPort *peer_port = goo_component_get_port (peer_component, "input0");
-
+	{
+	
 		GOO_PORT_GET_DEFINITION (peer_port)->format.video.nFrameWidth =
 			GOO_PORT_GET_DEFINITION (self->outport)->format.video.nFrameWidth;
 
@@ -316,15 +317,18 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 
 		GOO_PORT_GET_DEFINITION (peer_port)->nBufferCountActual =
 			GOO_PORT_GET_DEFINITION (self->outport)->nBufferCountActual;
-
-		g_object_unref (peer_port);
-
 	}
-
+	
 	/** @Todo: Change this to find which port is actually tunneled **/
 	goo_component_set_tunnel_by_name (self->component, "output0",
 						  peer_component, "input0", OMX_BufferSupplyInput);
 
+	
+	/*Sinkpp is buffer supplier*/
+	goo_component_set_supplier_port (peer_component, peer_port, OMX_BufferSupplyInput);
+		
+	g_object_unref (peer_port);
+	
 	GST_INFO ("Tunneled component successfully");
 
 	goo_component_set_state_idle (self->component);
