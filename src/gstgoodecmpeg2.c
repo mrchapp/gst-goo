@@ -93,9 +93,15 @@ gst_goo_decmpeg2_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *bu
 	{
 		GST_DEBUG_OBJECT (self, "Adding MPEG-4 header info to buffer");
 
-		buffer = gst_buffer_merge (GST_BUFFER (GST_GOO_VIDEODEC(self)->video_header), GST_BUFFER (buffer));
-		gst_buffer_unref (GST_GOO_VIDEODEC(self)->video_header);
+		GstBuffer *new_buf = gst_buffer_merge (GST_BUFFER (GST_GOO_VIDEODEC(self)->video_header), GST_BUFFER (buffer));
 
+		/* gst_buffer_merge() will end up putting video_header's timestamp on
+		 * the new buffer, but actually we want buf's timestamp:
+		 */
+		GST_BUFFER_TIMESTAMP (new_buf) = GST_BUFFER_TIMESTAMP (buffer);
+		buffer = new_buf;
+
+		gst_buffer_unref (GST_GOO_VIDEODEC(self)->video_header);
 	}
 
 	return buffer;

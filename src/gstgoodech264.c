@@ -115,7 +115,7 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 		char *buff, *pSPS, *pPPS, *m_pDecoderSpecific;
 		GstBuffer *new_buf;
 	        guint size, NAL_size, Buf_offset, Header_size; 	// JC@092008 Variables for changing the NAL segments headers
-	       
+
 		buff = GST_BUFFER_DATA (GST_GOO_VIDEODEC(self)->video_header);
 
 		/* TODO: verify header == 1 */
@@ -135,7 +135,7 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 
 		/***********       Forcing NALU_size_bytes = 0 !!!!!     ***************/
 		//NALU_size_bytes = 0;
-				
+
 			switch (NALU_size_bytes)
     	    {
         	case 1:
@@ -149,20 +149,20 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
         	case 4:
                 g_object_set (G_OBJECT (component), "NALU-byte-type", GOO_TI_H264DEC_NALU_BYTES_TYPE_4B, NULL);
                 Header_size=4;
-                break;                              
+                break;
         	default:
                 g_object_set (G_OBJECT (component), "NALU-byte-type", GOO_TI_H264DEC_NALU_BYTES_TYPE_0B, NULL);
                 Header_size=4;
                 break;
-        	}	
+        	}
 
 #if 0
-		if (NALU_size_bytes)		
-		{		        		
+		if (NALU_size_bytes)
+		{
 			return buf;
-		}		
+		}
 #endif
-				
+
 
 		/* 3 bits reserved (111) + 5 bits number of SPS */
 		numOfSPS = buff[index++] & 0x1f;
@@ -205,8 +205,8 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 			/* skip PPS content */
 			index += pps_len;
 		}
-		
-        
+
+
         m_DecoderSpecificSize -= Header_size;
 		GST_DEBUG_OBJECT (self, "SPS's=%d, PPS's=%d, size=%d",
 				numOfSPS, numOfPPS, m_DecoderSpecificSize);
@@ -241,20 +241,20 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 						m_pDecoderSpecific[pos++] = (sps_len >> 8) & 0xFF;
 						m_pDecoderSpecific[pos++] = (sps_len >> 0) & 0xFF;
 						GST_DEBUG_OBJECT (self, "[%02x %02x]",
-							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);						
-					} 
-					else 
+							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);
+					}
+					else
 					{
 						/* WORKAROUND: Make it look like MP4Box */
 						/* m_pDecoderSpecific[pos++] = (sps_len / 0x100) & 0xFF;
 				   		m_pDecoderSpecific[pos++] = (sps_len % 0x100) & 0xFF; */
 				   		m_pDecoderSpecific[pos++] = 0;
-				   		m_pDecoderSpecific[pos++] = 0;				   
+				   		m_pDecoderSpecific[pos++] = 0;
 				   		m_pDecoderSpecific[pos++] = 0;
 				   		m_pDecoderSpecific[pos++] = 1;
 						GST_DEBUG_OBJECT (self, "[%02x %02x]",
-							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);				   		
-					}   
+							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);
+					}
 					break;
 				}
 			}
@@ -290,20 +290,20 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 						m_pDecoderSpecific[pos++] = (pps_len >> 8) & 0xFF;
 						m_pDecoderSpecific[pos++] = (pps_len >> 0) & 0xFF;
 						GST_DEBUG_OBJECT (self, "[%02x %02x]",
-							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);								
-					} 
-					else 
+							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);
+					}
+					else
 					{
 						/* WORKAROUND: Make it look like MP4Box */
 						/* m_pDecoderSpecific[pos++] = (sps_len / 0x100) & 0xFF;
 				   		m_pDecoderSpecific[pos++] = (sps_len % 0x100) & 0xFF; */
 				   		m_pDecoderSpecific[pos++] = 0;
-				   		m_pDecoderSpecific[pos++] = 0;				   
+				   		m_pDecoderSpecific[pos++] = 0;
 				  		m_pDecoderSpecific[pos++] = 0;
 				   		m_pDecoderSpecific[pos++] = 1;
 						GST_DEBUG_OBJECT (self, "[%02x %02x]",
-							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);						   		
-					}   	
+							m_pDecoderSpecific[pos-2], m_pDecoderSpecific[pos-1]);
+					}
 					break;
 				}
 			}
@@ -316,42 +316,42 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 		}
 
 		/* WORKAROUND: Make it look like MP4Box */
-		
 
-		
+
+
 		GST_DEBUG_OBJECT (self, "WORKAROUND Make it look like MP4Box pos=%d, ",pos);
-		
-		
+
+
 		/* WORKAROUND: Make it look like MP4Box */
 		GST_DEBUG_OBJECT (self, "working around stuff 1");
-		
-		
-		
+
+
+
 		/**********************  JC@092008  **************************/
 		/* Replacement of NAL segment headers                        */
-		/*    Search for the next NAL header while replacing the     */	
-		/*    the current one with 0x0001                            */	
-		/*************************************************************/		         
-		       
+		/*    Search for the next NAL header while replacing the     */
+		/*    the current one with 0x0001                            */
+		/*************************************************************/
+
 		size=0; NAL_size=0; Buf_offset=0;
 
 		size = GST_BUFFER_SIZE (temp_buffer);
-		GST_DEBUG ("Header BUFFER SIZE: %d",size);		
+		GST_DEBUG ("Header BUFFER SIZE: %d",size);
 		size = GST_BUFFER_SIZE (buf);
 		GST_DEBUG ("1st. GST_BUFFER SIZE w/o Headers: %d",size);
 
 		if(NALU_size_bytes == 0)
-		{		
+		{
 				while (Buf_offset < size )
 				{
 					NAL_size = ((GST_BUFFER_DATA (buf)[0 + Buf_offset]*16777216)+
 			        		    (GST_BUFFER_DATA (buf)[1 + Buf_offset]*65536)+
 			         			(GST_BUFFER_DATA (buf)[2 + Buf_offset]*256)+
 								(GST_BUFFER_DATA (buf)[3 + Buf_offset]) );
-		 
-					/* Prints */ 
+
+					/* Prints */
 					#if 1
-		 			{           
+		 			{
         				GST_DEBUG ("1st. BUFFER_DATA 1: %x",
         							GST_BUFFER_DATA (buf)[0 + Buf_offset]);
 		          		GST_DEBUG ("1st. BUFFER_DATA 2: %x",
@@ -362,31 +362,36 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 		          					GST_BUFFER_DATA (buf)[3 + Buf_offset]);
 						GST_DEBUG ("NAL SIZE: %d",NAL_size);
 					}
-					#endif					           
-		
+					#endif
+
 					GST_BUFFER_DATA (buf)[0 + Buf_offset] = 0;
 					GST_BUFFER_DATA (buf)[1 + Buf_offset] = 0;
 					GST_BUFFER_DATA (buf)[2 + Buf_offset] = 0;
 					GST_BUFFER_DATA (buf)[3 + Buf_offset] = 1;
-			
+
 
 					Buf_offset = Buf_offset + NAL_size + Header_size;
 					//GST_DEBUG ("1st. BUFFER OFFSET: %d",Buf_offset);
 				}
-		}				
-		
+		}
+
 		/*************************************************************/
-		
- 
+
+
 
 		//GST_BUFFER_DATA (buf) += 4;
 		//GST_BUFFER_SIZE (buf) -= 4;
 		GST_DEBUG ("GST_BUFFER_DATA: %d",GST_BUFFER_DATA (buf));
-		GST_DEBUG ("GST_BUFFER_SIZE: %d",GST_BUFFER_SIZE (buf));		
-						
-						
-						
+		GST_DEBUG ("GST_BUFFER_SIZE: %d",GST_BUFFER_SIZE (buf));
+
+
+
 		new_buf = gst_buffer_merge (GST_BUFFER (temp_buffer), GST_BUFFER (buf));
+
+		/* gst_buffer_merge() will end up putting temp_buffer's timestamp on
+		 * the new buffer, but actually we want buf's timestamp:
+		 */
+		GST_BUFFER_TIMESTAMP (new_buf) = GST_BUFFER_TIMESTAMP (buf);
 
 		if (G_LIKELY (GST_BUFFER (buf)))
 		{
@@ -428,25 +433,25 @@ gst_goo_dech264_extra_buffer_processing (GstGooVideoFilter* filter, GstBuffer *b
 {
 
 	GstGooDecH264 *self = GST_GOO_DECH264 (filter);
-	static gboolean first_buffer = TRUE; 
+	static gboolean first_buffer = TRUE;
 	       guint size, NAL_size, Buf_offset,i;		// JC@092008
 	static guint NALU_size_bytes=0, Header_size;	// JC@092008
-	
-	gboolean is_Bitstream_mode = gst_goo_dech264_get_NALU_byte_type(self) == GOO_TI_H264DEC_NALU_BYTES_TYPE_0B;
-	
-	GST_DEBUG ("Entering");
-	
 
-		
-    size=0; NAL_size=0; Buf_offset=0;  
-                
+	gboolean is_Bitstream_mode = gst_goo_dech264_get_NALU_byte_type(self) == GOO_TI_H264DEC_NALU_BYTES_TYPE_0B;
+
+	GST_DEBUG ("Entering");
+
+
+
+    size=0; NAL_size=0; Buf_offset=0;
+
 	if (! NALU_size_bytes)
-	{                
+	{
     		switch (gst_goo_dech264_get_NALU_byte_type(self))
-    	    {    	
+    	    {
             case GOO_TI_H264DEC_NALU_BYTES_TYPE_1B:
             	Header_size=1;
-                NALU_size_bytes=1; 
+                NALU_size_bytes=1;
                 break;
         	case GOO_TI_H264DEC_NALU_BYTES_TYPE_2B:
         		Header_size=2;
@@ -455,35 +460,35 @@ gst_goo_dech264_extra_buffer_processing (GstGooVideoFilter* filter, GstBuffer *b
         	case GOO_TI_H264DEC_NALU_BYTES_TYPE_4B:
         		Header_size=4;
                 NALU_size_bytes=4;
-                break;                              
+                break;
         	default:
         		Header_size=4;
                 NALU_size_bytes=4;
                 break;
-        	}	            
-                
- 		GST_DEBUG ("NALU SIZE: %d",NALU_size_bytes);                               
- 	}	
+        	}
+
+ 		GST_DEBUG ("NALU SIZE: %d",NALU_size_bytes);
+ 	}
                 size = GST_BUFFER_SIZE (buffer);
 		GST_DEBUG ("GST_BUFFER SIZE: %d",size);
-		
+
 
 	/** Workaround to make it look like the MP4Box extraction tool **/
-	
+
 	if ( gst_goo_dech264_parsed_header == TRUE && !first_buffer && is_Bitstream_mode)
 	{
-				
+
 		while (Buf_offset < size )
 		{
 
-		
+
 			NAL_size = ( (GST_BUFFER_DATA (buffer)[0 + Buf_offset]*16777216)+
 			             (GST_BUFFER_DATA (buffer)[1 + Buf_offset]*65536)+
 			             (GST_BUFFER_DATA (buffer)[2 + Buf_offset]*256)+
 			             (GST_BUFFER_DATA (buffer)[3 + Buf_offset]) );
-		/* Prints */ 
+		/* Prints */
 		#if 0
-		 	{ 		              
+		 	{
 		          	GST_DEBUG ("BUFFER_DATA 1: %x",
 		          				GST_BUFFER_DATA (buffer)[0 + Buf_offset]);
 		          	GST_DEBUG ("BUFFER_DATA 2: %x",
@@ -494,17 +499,17 @@ gst_goo_dech264_extra_buffer_processing (GstGooVideoFilter* filter, GstBuffer *b
 		          				GST_BUFFER_DATA (buffer)[3 + Buf_offset]);
 				GST_DEBUG ("NAL SIZE: %d",NAL_size);
 			}
-		#endif		
-						           
+		#endif
+
 			GST_BUFFER_DATA (buffer)[0 + Buf_offset] = 0;
 			GST_BUFFER_DATA (buffer)[1 + Buf_offset] = 0;
 			GST_BUFFER_DATA (buffer)[2 + Buf_offset] = 0;
 			GST_BUFFER_DATA (buffer)[3 + Buf_offset] = 1;
-			
+
 							  // NALU_size_bytes (NAL header) considered to be 4 bytes long !!!!
-			Buf_offset = Buf_offset + NAL_size + Header_size;    
+			Buf_offset = Buf_offset + NAL_size + Header_size;
 			//GST_DEBUG ("BUFFER OFFSET: %d",Buf_offset);
-		
+
 		}
 	}
 

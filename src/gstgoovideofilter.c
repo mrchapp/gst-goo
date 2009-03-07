@@ -470,10 +470,6 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 	gint64 buffer_stamp = GST_BUFFER_TIMESTAMP (buffer);
 
-// XXX somehow the first video frame doesn't have a valid timestamp... but we know it should be zero:
-if (!GST_CLOCK_TIME_IS_VALID (timestamp))
-timestamp = buffer_stamp = GST_BUFFER_TIMESTAMP (buffer) = 0;
-
 	if (goo_port_is_tunneled (self->inport))
 	{
 		/* shall we send a ghost buffer here ? */
