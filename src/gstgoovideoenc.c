@@ -369,14 +369,12 @@ gst_goo_videoenc_configure_caps (GstGooVideoFilter* filter,
 
 	if (goo_component_get_state (GST_GOO_VIDEO_FILTER(self)->component) == OMX_StateLoaded)
 	{
-		g_print("\nvideoencoder en load\n");
 		GST_OBJECT_LOCK (self);
 		ret = omx_sync (self, color_format, width, height, framerate);
 		GST_OBJECT_UNLOCK (self);
 	}
 	else if (goo_port_is_tunneled (GST_GOO_VIDEO_FILTER(self)->inport))
 	{
-		g_print("\nVideo encoder en tunnel\n");
 		ret=TRUE;
 	}
 	return ret;

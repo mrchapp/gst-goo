@@ -307,11 +307,9 @@ gst_goo_camera_stop (GstBaseSrc* self)
 	}
 	sleep(1);
 	
-	g_print("\nSTOP camera, going to idle\n"); 
 	GST_INFO_OBJECT (self, "going to idle");
 	goo_component_set_state_idle (me->camera);
 
-	g_print("\nSTOP camera, going to load\n"); 
 	GST_INFO_OBJECT (self, "camera: going to loaded");
 	goo_component_set_state_loaded (me->camera);
 
@@ -324,7 +322,6 @@ gst_goo_camera_fixate (GstBaseSrc* self, GstCaps* caps)
 {
 	GstStructure *structure;
 	gint i;
-	g_print("\nfixating caps enter \n");
 	GST_DEBUG_OBJECT (self, "fixating caps %" GST_PTR_FORMAT, caps);
 	ResolutionInfo defres = goo_get_resolution ("cif");
 
@@ -359,7 +356,6 @@ gst_goo_camera_fixate (GstBaseSrc* self, GstCaps* caps)
 		}
 	}
 	
-	g_print("\nfixating caps exit \n");
 }
 
 static OMX_COLOR_FORMATTYPE
@@ -435,8 +431,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 
 		param->sFrameSize.nWidth = width;
 		param->sFrameSize.nHeight = height;
-		g_print ("\nSensor GST-GOO-CAMERA \n dwidth = %d | dheight = %d\n", param->sFrameSize.nWidth, param->sFrameSize.nHeight);
-		
+			
 	}
 	
 	if (priv->preview == TRUE)
@@ -445,15 +440,9 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		{
 			if (one_shot == FALSE)
 			{	
-				/*ResolutionInfo rinfo = goo_get_resolution ("pal");*/
-				/*Preview max vga*/
-				/*priv->display_width  = ( width > rinfo.width) ? rinfo.width : width;
-				priv->display_height = ( width > rinfo.height) ? rinfo.height : height;
-				*/
 				priv->display_width  = width;
 				priv->display_height = height;
 				
-				g_print ("\nPreview \N gst-goo dwidth = %d | dheight = %d\n", priv->display_width,	 priv->display_height);
 			}
 			else if (priv->display_width == 0 &&
 				 priv->display_height == 0)
@@ -614,7 +603,6 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 				
 				if  G_UNLIKELY (next_element == NULL)
 				{	
-					g_print("\nNO TUNNEl \n");
 					goto no_enc;
 				}
 				
@@ -653,7 +641,6 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 							param->format.video.nFrameWidth =   width;
 							param->format.video.nFrameHeight =	height;
 							param->format.video.eColorFormat = color;
-							g_print ("\nVIDEO ENCODER  \ndwidth = %d | dheight = %d\n ", param->format.video.nFrameWidth,	 param->format.video.nFrameHeight);
 							g_object_unref (peer_port);
 						}		
 						
@@ -671,8 +658,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 					  				component, "input0", 
 					  				OMX_BufferSupplyInput);
 
-							g_print("\nsetting up tunnel with video encoder \n");					  				
-					  		g_object_unref (port);
+							g_object_unref (port);
 					  	}
 					}
 					gst_object_unref (next_element);
@@ -721,7 +707,6 @@ gst_goo_camera_setcaps (GstBaseSrc* self, GstCaps* caps)
 	GstStructure* structure;
 
 	GST_DEBUG_OBJECT (me, "");
-	g_print("\nsetcaps enter \n");
 	structure = gst_caps_get_structure (caps, 0);
 
 	gint width = 0, height = 0;
@@ -752,10 +737,7 @@ gst_goo_camera_setcaps (GstBaseSrc* self, GstCaps* caps)
 	priv->fps_n = fps_n;
 	priv->fps_d = fps_d;
 	
-	g_print("\ncamera sync enter \n");
 	gst_goo_camera_sync (me, width, height, color, fps_n, fps_d);
-	
-	g_print("\nsetcaps exit \n");
 	
 	return TRUE;
 }
@@ -767,7 +749,6 @@ gst_goo_camera_query (GstBaseSrc* self, GstQuery* query)
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (me);
 	gboolean res = FALSE;
 	
-	g_print("\nquery enter \n");
 	switch (GST_QUERY_TYPE (query))
 	{
 	case GST_QUERY_LATENCY:
@@ -808,7 +789,6 @@ gst_goo_camera_query (GstBaseSrc* self, GstQuery* query)
 	}
 
 done:
-	g_print("\nquery exit \n");
 	return res;
 }
 
@@ -819,7 +799,6 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (me);
 	GstBuffer* gst_buffer = NULL;
 	OMX_BUFFERHEADERTYPE* omx_buffer = NULL;
-	g_print("\ncamera_create enter \n");
 	GST_DEBUG_OBJECT (me, " ");
 	if (me->camera->cur_state != OMX_StateExecuting)
 	{
@@ -835,7 +814,6 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 
 	if (goo_port_is_tunneled (me->captureport))
 	{
-		g_print("\ncaptureport tuneleado\n");
 		GST_INFO_OBJECT (me, "port is tunneled, send ghost_buffer");
 		gst_buffer = gst_ghost_buffer_new ();
 		GST_DEBUG_OBJECT (me, "setting caps on ghost buffer");
@@ -971,8 +949,6 @@ beach:
 	GST_DEBUG_OBJECT (me, "beach");
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount++;
 	GST_BUFFER_OFFSET_END (gst_buffer) = priv->outcount;
-	
-	g_print("\ncamera_create exit\n");
 	
 	*buffer = gst_buffer;
 	return GST_FLOW_OK;
