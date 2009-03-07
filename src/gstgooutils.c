@@ -43,6 +43,11 @@ already_visited ( GHashTable *visited_nodes, gpointer key )
 	{
 		/* we just map elem->elem... it only matters that the value is not
 		 * NULL.  (Really, we just need a HashSet)
+		 *
+		 * Note: this doesn't increase the ref count of key.. so it is
+		 * possible that it could be freed while it is still in the
+		 * table..  not really sure if that is likely to cause any
+		 * issue.
 		 */
 		g_hash_table_insert (visited_nodes, key, key);
 		return FALSE;
@@ -72,21 +77,22 @@ static void hook_element (GstElement *elem, PipelineChangeListenerContext *ctx)
 	{
 		GST_INFO ("");
 
+GST_DEBUG_OBJECT (elem, "going to g_signal_connect");
 		g_signal_connect (elem, "pad-added", (GCallback)pad_added, ctx);
+GST_DEBUG_OBJECT (elem, "done g_signal_connect");
 
 		/* Since it is likely that some pads are already hooked, let's iterate them
-		 * (since there will be no pad-added signel for them) and simulate the
-	 	* the missed signal
- *
+		 * (since there will be no pad-added signal for them) and simulate the
+		 * the missed signal
+		 *
 		 * XXX here we probably should do something sane if the underlying data
 		 * structure changes as we iterate.. hmm
 		 */
 		for( itr = gst_element_iterate_pads (elem);
-	    	 gst_iterator_next (itr, &item) == GST_ITERATOR_OK;
-	     	gst_object_unref (item) )
+		     gst_iterator_next (itr, &item) == GST_ITERATOR_OK;
+		     gst_object_unref (item) )
 		{
-			GstPad *pad = GST_PAD(item);
-			pad_added (elem, pad, ctx);
+			pad_added (elem, GST_PAD(item), ctx);
 		}
 
 		/* in case this elem is a bin, we need to hook all the elements within
@@ -95,8 +101,8 @@ static void hook_element (GstElement *elem, PipelineChangeListenerContext *ctx)
 		if( GST_IS_BIN (elem) )
 		{
 			for( itr = gst_bin_iterate_elements (elem);
-		    	 gst_iterator_next (itr, &item) == GST_ITERATOR_OK;
-		    	 gst_object_unref (item) )
+			     gst_iterator_next (itr, &item) == GST_ITERATOR_OK;
+			     gst_object_unref (item) )
 			{
 				hook_element (GST_ELEMENT (item), ctx);
 			}
@@ -114,6 +120,7 @@ static void pad_linked (GstElement *pad, GstPad *peer, PipelineChangeListenerCon
 {
 	GST_INFO ("");
 	GstElement *elem = NULL;
+	GstObject *obj = NULL;
 
 	/* in the case of GstGhostPad (and probably other proxy pads)
 	 * the parent is actually the pad we are a proxy for, so
@@ -121,11 +128,17 @@ static void pad_linked (GstElement *pad, GstPad *peer, PipelineChangeListenerCon
 	 */
 	while (peer != NULL)
 	{
-		GstObject *obj = gst_pad_get_parent (peer);
-		GST_INFO ("obj=%s", G_OBJECT_TYPE_NAME (obj));
+		if(obj)
+		{
+GST_DEBUG_OBJECT (obj, "going to unref");
+			gst_object_unref (obj);
+GST_DEBUG_OBJECT (obj, "done unref");
+		}
+
+		obj = gst_pad_get_parent (peer);
+
 		if( GST_IS_PAD(obj) )
 		{
-			//???gst_object_unref (peer);
 			peer = GST_PAD (obj);
 		}
 		else
@@ -135,13 +148,17 @@ static void pad_linked (GstElement *pad, GstPad *peer, PipelineChangeListenerCon
 		}
 	}
 
-	if (G_UNLIKELY (elem == NULL))
+	if (G_LIKELY (elem))
 	{
-		GST_INFO ("hmm?  elem is null?  how does this happen?");
-		return;
+		hook_element (elem, ctx);
 	}
 
-	hook_element (elem, ctx);
+	if(obj)
+	{
+GST_DEBUG_OBJECT (obj, "going to unref");
+		gst_object_unref (obj);
+GST_DEBUG_OBJECT (obj, "done unref");
+	}
 }
 
 static void pad_added (GstElement *elem, GstPad *pad, PipelineChangeListenerContext *ctx)
@@ -156,10 +173,16 @@ static void pad_added (GstElement *elem, GstPad *pad, PipelineChangeListenerCont
 	if (peer != NULL)
 	{
 		pad_linked (pad, peer, ctx);
+
+GST_DEBUG_OBJECT (peer, "going to unref");
+		gst_object_unref (peer);
+GST_DEBUG_OBJECT (peer, "done unref");
 	}
 	else
 	{
+GST_DEBUG_OBJECT (pad, "going to g_signal_connect");
 		g_signal_connect (pad, "linked", pad_linked, ctx);
+GST_DEBUG_OBJECT (pad, "done g_signal_connect");
 	}
 }
 
@@ -174,14 +197,16 @@ static void pad_added (GstElement *elem, GstPad *pad, PipelineChangeListenerCont
  * Note: currently we don't listen for pads being removed, or unlinked.. we
  * assume that no-one cares about this.. (although this could change.. I'm
  * just too lazy to handle that right now)
+ *
+ * @return a handle which can be later passed to gst_goo_util_unregister_pipeline_change_cb
  */
-void
+void *
 gst_goo_util_register_pipeline_change_cb (GstElement *elem, void (*cb) (GstElement *elem))
 {
 	static gboolean first_time = TRUE;
 
 	if (first_time)   /* ugg! any way to not need this hack to have debug logging? */
-{
+	{
 		GST_DEBUG_CATEGORY_INIT (gstgooutils, "gstgooutils", 0, "GST-GOO Utils");
 		first_time = FALSE;
 	}
@@ -212,6 +237,29 @@ gst_goo_util_register_pipeline_change_cb (GstElement *elem, void (*cb) (GstEleme
 	 * to simulate the signal:
 	 */
 	cb (elem);
+
+	return ctx;
+}
+
+/**
+ * TODO Remove a previously setup pipeline change callback..
+ *
+ * @handle is what is returned by gst_goo_util_register_pipeline_change_cb()
+ */
+void
+gst_goo_util_unregister_pipeline_change_cb (void *handle)
+{
+	PipelineChangeListenerContext *ctx = (PipelineChangeListenerContext *)handle;
+
+	/* Note:  we want to do something like this:
+	 *
+	 *   g_hash_table_destroy (ctx->visited_nodes);
+	 *   free(ctx);
+	 *
+	 * but we probably need to ensure that all signal handlers are unwired
+	 * first, otherwise we could, in theory, get callbacks trying to deref
+	 * freed memory..
+	 */
 }
 
 /******************************************************************************/
@@ -294,7 +342,9 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 {
 	GstIterator  *itr;
 	gpointer      item;
-	GstElement   *adjacent_elem;
+	GstElement   *adjacent_elem = NULL;
+	GstObject    *obj = NULL;
+
 
 	/* check if we've already examined this element, to prevent loops: */
 	if (already_visited (ctx->visited_nodes, elem))
@@ -322,7 +372,7 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 		{
 			GST_INFO ("NULL peer.. not connected yet?");
 			continue;
-	}
+		}
 
 		/* in the case of GstGhostPad (and probably other proxy pads)
 		 * the parent is actually the pad we are a proxy for, so
@@ -330,10 +380,19 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 		 */
 		while(TRUE)
 		{
-			GstObject *obj = gst_pad_get_parent (peer);
+			if(obj)
+			{
+GST_DEBUG_OBJECT (obj, "going to unref");
+				gst_object_unref (obj);
+GST_DEBUG_OBJECT (obj, "done unref");
+			}
+
+			obj = gst_pad_get_parent (peer);
 			if( GST_IS_PAD(obj) )
 			{
+GST_DEBUG_OBJECT (peer, "going to unref");
 				gst_object_unref (peer);
+GST_DEBUG_OBJECT (peer, "done unref");
 				peer = GST_PAD (obj);
 			}
 			else
@@ -344,11 +403,13 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 		}
 
 		if (G_UNLIKELY (adjacent_elem == NULL))
-	{
+		{
 			GST_INFO ("Cannot find a adjacent element");
+GST_DEBUG_OBJECT (peer, "going to unref");
 			gst_object_unref (peer);
+GST_DEBUG_OBJECT (peer, "done unref");
 			continue;
-	}
+		}
 
 		GST_INFO ("found adjacent_elem: %s", gst_element_get_name (adjacent_elem));
 
@@ -360,10 +421,10 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 			 * contents of that bin:
 			 */
 			if( GST_IS_BIN (adjacent_elem) )
-	{
+			{
 				component = find_goo_component_in_bin (GST_BIN (adjacent_elem), ctx);
 			}
-	}
+		}
 
 		if (component == NULL)
 		{
@@ -374,9 +435,12 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 		}
 
 		/* cleanup: */
-
+GST_DEBUG_OBJECT (adjacent_elem, "going to unref");
 		gst_object_unref (adjacent_elem);
-		gst_object_unref (peer);
+GST_DEBUG_OBJECT (adjacent_elem, "done unref");
+//GST_DEBUG_OBJECT (peer, "going to unref");
+//		gst_object_unref (peer);
+//GST_DEBUG_OBJECT (peer, "done unref");
 
 		if( component != NULL )
 		{

@@ -28,12 +28,12 @@
 
 G_BEGIN_DECLS
 
-void gst_goo_util_register_pipeline_change_cb (GstElement *elem, void (*cb) (GstElement *elem));
+void * gst_goo_util_register_pipeline_change_cb (GstElement *elem, void (*cb) (GstElement *elem));
 GooComponent* gst_goo_utils_find_goo_component (GstElement *elem, GType type);
 
 
-#define GST2OMX_TIMESTAMP(ts) (OMX_S64) ts / 1000;
-#define OMX2GST_TIMESTAMP(ts) (guint64) ts * 1000;
+#define GST2OMX_TIMESTAMP(ts) ((OMX_S64) ts / 1000)
+#define OMX2GST_TIMESTAMP(ts) ((guint64) ts * 1000)
 
 
 G_END_DECLS
