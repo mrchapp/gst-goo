@@ -423,7 +423,7 @@ gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 
 	GstGooSinkPP* self = GST_GOO_SINKPP (bsink);
 
-	gboolean ret;
+	gboolean ret = FALSE;
 
 	g_assert (self->component != NULL);
 
@@ -451,11 +451,21 @@ gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 	   		gdouble rate;
 
       		gst_event_parse_new_segment (event, &is_update, &rate, &fmt, &start,&end, &base);
+#if 0
+/* this will cause the OMX clock to be reset, which we do not want.. resetting
+ * OMX clock on seek must be synchronized with the first buffer passed down
+ * with OMX timestamp==0 (ie. first buffer after re-normalizing the OMX
+ * timestamp) and this is achived by setting the OMX_BUFFERFLAG_STARTTIME
+ * flag on the buffer rather than explicitly calling down to OMX_SetConfig()...
+ * this way, the clock is reset from the OMX thread receiving the buffer
+ */
       		if (fmt == GST_FORMAT_TIME) {
 				GST_DEBUG ("Gstreamer start time: %lld\n", start*1000);
 				goo_ti_post_processor_set_starttime (self->component, start);
 			}
+#endif
 		}
+		ret = TRUE;
         break;
 
 	case GST_EVENT_TAG:

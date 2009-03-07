@@ -261,7 +261,7 @@ gst_goo_audio_filter_wait_for_done (GstGooAudioFilter* self)
 static gboolean
 gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 {
-	GST_LOG ("");
+	GST_INFO ("%s", GST_EVENT_TYPE_NAME (event));
 
 	GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (gst_pad_get_parent (pad));
 	GstGooAudioFilterPrivate* priv = GST_GOO_AUDIO_FILTER_GET_PRIVATE (self);
@@ -273,11 +273,9 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 	switch (GST_EVENT_TYPE (event))
 	{
 		case GST_EVENT_NEWSEGMENT:
-			GST_INFO ("New segement event");
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_EOS:
-			GST_INFO ("EOS event");
 			gst_goo_audio_filter_wait_for_done (self);
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
@@ -289,6 +287,13 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 	gst_object_unref (self);
 	return ret;
 }
+
+/**
+ * The audio pipe controls the clock, and video is sync'd to audio.. which
+ * means that video needs to use the same normalization offset
+ */
+OMX_S64 global_omx_normalize_timestamp;
+gboolean global_omx_normalize_timestamp_changed = FALSE;
 
 static int framenum = 0;
 
@@ -304,7 +309,7 @@ gst_goo_audio_filter_chain2 (GstPad* pad, GstBuffer* buffer)
 
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 
-GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
 
 	if (self->component->cur_state != OMX_StateExecuting)
 	{
@@ -317,16 +322,25 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFF
 		return GST_FLOW_UNEXPECTED;
 	}
 
-	/** @todo GstGooAdapter! */
-	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
+	/*This is done for first frame or when de base time are modified*/
+	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT) ||
+	   (timestamp == 0) /* for some reason, if user seeks back to beginning, we don't get DISCONT flag */ )
 	{
 		gst_goo_adapter_clear (adapter);
+		global_omx_normalize_timestamp = GST2OMX_TIMESTAMP (timestamp);
+		global_omx_normalize_timestamp_changed = TRUE;
+		GST_INFO ("omx_normalize_timestamp=%lld", global_omx_normalize_timestamp );
 	}
 
-	if (priv->incount == 0)
+	/* If we have re-normalized, discard audio buffers until video has passed down a frame
+	 * with OMX_BUFFER_STARTTIME set..
+	 * <p>
+	 * TODO: what about audio-only pipes.. maybe we should actually let video control the
+	 * re-normalization??
+	 */
+	if (global_omx_normalize_timestamp_changed)
 	{
-		self->omx_normalize_timestamp	= GST2OMX_TIMESTAMP (timestamp);
-		GST_INFO ("omx_normalize_timestamp=%lld", self->omx_normalize_timestamp);
+		return GST_FLOW_OK;
 	}
 
 	gst_goo_adapter_push (adapter, buffer);
@@ -386,8 +400,8 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFF
 		/* transfer timestamp to openmax */
 		if (GST_CLOCK_TIME_IS_VALID (timestamp))
 		{
-			omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP ((gint64)timestamp) - self->omx_normalize_timestamp;
-			GST_INFO_OBJECT (self, "%d: OMX timestamp = %lld", framenum++, omx_buffer->nTimeStamp);
+			omx_buffer->nTimeStamp   = GST2OMX_TIMESTAMP ((gint64)timestamp) - global_omx_normalize_timestamp ;
+			GST_INFO_OBJECT (self, "%d: OMX timestamp = %lld (= %lld - %lld)", framenum++, omx_buffer->nTimeStamp, GST2OMX_TIMESTAMP ((gint64)timestamp), global_omx_normalize_timestamp);
 		}
 		else
 		{
@@ -449,26 +463,10 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 	// XXX maybe all access to 'adapter' needs to be moved to chain2()?  could be weird race
 	// conditions between chain() and chain2() otherwise..
 
-	if (self->seek_active == TRUE)
-	{
-		if (buffer_stamp < self->seek_time)
-		{
-			 GST_DEBUG_OBJECT (self, "Dropping buffer at %"GST_TIME_FORMAT,
-				GST_TIME_ARGS (buffer_stamp));
-			gst_goo_adapter_clear (adapter);
-			goto done;
-		}
-		else
-		{
-			GST_DEBUG_OBJECT (self, "Continue buffer at %"GST_TIME_FORMAT,
-				GST_TIME_ARGS (buffer_stamp));
-			self->seek_active = FALSE;
-		}
-	}
-
 	if (priv->incount == 0 &&
 	    goo_component_get_state (self->component) == OMX_StateLoaded)
 	{
+		GST_DEBUG_OBJECT (self, "potential header processing");
 
 		/** Some filters require header processing,
 			apended to the first buffer **/
@@ -506,7 +504,7 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 		ghost_buffer->chain  = gst_goo_audio_filter_chain2;
 		ghost_buffer->pad    = gst_object_ref(pad);
-GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
 		ghost_buffer->buffer = gst_buffer_ref(buffer);
 
 		if (self->src_caps)
@@ -640,50 +638,50 @@ gst_goo_audio_filter_get_property (GObject* object, guint prop_id,
 static void
 gst_goo_audio_filter_dispose (GObject* object)
 {
-        GstGooAudioFilter* me;
+	GstGooAudioFilter* me;
 
-        G_OBJECT_CLASS (parent_class)->dispose (object);
+	G_OBJECT_CLASS (parent_class)->dispose (object);
 
-        me = GST_GOO_AUDIO_FILTER (object);
+	me = GST_GOO_AUDIO_FILTER (object);
 
-		if (G_LIKELY (me->adapter))
-		{
-			GST_DEBUG ("unrefing adapter");
-			g_object_unref (me->adapter);
-		}
+	if (G_LIKELY (me->adapter))
+	{
+		GST_DEBUG ("unrefing adapter");
+		g_object_unref (me->adapter);
+	}
 
-        if (G_LIKELY (me->inport))
-        {
+	if (G_LIKELY (me->inport))
+	{
 		GST_DEBUG ("unrefing inport");
-                g_object_unref (me->inport);
-        }
+		g_object_unref (me->inport);
+	}
 
-        if (G_LIKELY (me->outport))
-        {
+	if (G_LIKELY (me->outport))
+	{
 		GST_DEBUG ("unrefing outport");
-                g_object_unref (me->outport);
-        }
+		g_object_unref (me->outport);
+	}
 
 	if (G_LIKELY (me->component))
-        {
+	{
 		GST_DEBUG ("GOO component = %d",
-				  G_OBJECT (me->component)->ref_count);
+				G_OBJECT (me->component)->ref_count);
 
 		GST_DEBUG ("unrefing component");
 		G_OBJECT (me->component)->ref_count = 1;
-                g_object_unref (me->component);
-        }
+		g_object_unref (me->component);
+	}
 
 	if (G_LIKELY (me->factory))
 	{
 		GST_DEBUG ("GOO factory = %d",
-				  G_OBJECT (me->factory)->ref_count);
+				G_OBJECT (me->factory)->ref_count);
 
 		GST_DEBUG ("unrefing factory");
 		g_object_unref (me->factory);
 	}
 
-        return;
+	return;
 }
 
 static gboolean
@@ -829,9 +827,9 @@ gst_goo_audio_filter_init (GstGooAudioFilter* self, GstGooAudioFilterClass* klas
 	priv->process_mode = DEFAULT_PROCESS_MODE;
 	self->nbamr_mime = FALSE;
 	self->wbamr_mime = FALSE;
-	self->seek_active = FALSE;
 
 	self->factory = goo_ti_component_factory_get_instance ();
+	global_omx_normalize_timestamp = 0;
 
 	/* GST */
 	GstPadTemplate* pad_template;

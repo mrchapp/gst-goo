@@ -61,18 +61,13 @@ struct _GstGooVideoFilter
 	GooPort* inport;
 	GooPort* outport;
 	GstGooAdapter* adapter;
-	gboolean seek_active;
-	gint64 seek_time;
 
 	/*< protected >*/
 	GstPad* sinkpad;
 	GstPad* srcpad;
-	
+
 	/* this should be set by derived class when caps are known: */
 	GstCaps* src_caps;
-
-	/* This field is used to normalize timestamps to 0 */
-	OMX_S64 omx_normalize_timestamp;
 
 	/* These fields are used to estimate
 	     timestamps when not present */
