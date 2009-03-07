@@ -71,13 +71,9 @@ gst_ghost_buffer_get_type (void)
         return type;
 }
 
-GstBuffer*
+GstGhostBuffer*
 gst_ghost_buffer_new ()
 {
-        GstBuffer* buffer = GST_BUFFER (
-		gst_mini_object_new (GST_TYPE_GHOST_BUFFER)
-		);
-
-        return buffer;
+		return (GstGhostBuffer *) gst_mini_object_new (GST_TYPE_GHOST_BUFFER);
 }
 

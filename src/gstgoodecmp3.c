@@ -387,6 +387,7 @@ gst_goo_decmp3_check_fixed_src_caps (GstGooAudioFilter *filter)
 						"channels", G_TYPE_INT, param->nChannels,
 						NULL);
 
+	filter->src_caps = gst_caps_ref (caps);
 	gst_pad_set_caps (GST_GOO_AUDIO_FILTER (self)->srcpad, caps);
 	gst_caps_unref (caps);
 
@@ -626,10 +627,10 @@ gst_goo_decmp3_sink_setcaps (GstPad *pad, GstCaps *caps)
 	gst_structure_get_int (structure, "rate", &sample_rate);
 	gst_structure_get_int (structure, "channels", &channels);
 	gst_structure_get_int (structure, "layer", &layer);
-	
+
 	factor = 0.02 * channels * sample_rate;
-	GST_GOO_AUDIO_FILTER (self)->duration = 
-		gst_util_uint64_scale_int (GST_SECOND, factor, 
+	GST_GOO_AUDIO_FILTER (self)->duration =
+		gst_util_uint64_scale_int (GST_SECOND, factor,
 			sample_rate * channels);
 
 	g_object_set(component, "layer", layer, NULL);
@@ -662,7 +663,7 @@ gst_goo_decmp3_src_setcaps (GstPad *pad, GstCaps *caps)
 	next_element = GST_ELEMENT (gst_pad_get_parent (peer));
 	str_peer = gst_element_get_name (next_element);
 	comp_res = strncmp (dasf, str_peer, 4);
-    
+
 	if (comp_res == 0)
 	{
 		GST_DEBUG_OBJECT (self, "DASF-SINK Activated: MP3 Dec");
@@ -682,7 +683,7 @@ gst_goo_decmp3_src_setcaps (GstPad *pad, GstCaps *caps)
 
 	gst_structure_get_int (structure, "width", &width);
 	gst_structure_get_int (structure, "depth", &depth);
-	
+
 	gst_object_unref (next_element);
 	gst_object_unref (peer);
 

@@ -221,6 +221,7 @@ gst_goo_transform_change_state (GstElement* element, GstStateChange transition)
 		/* GST_STATE_PAUSED is the state in which an element is ready
 		   to accept and handle data. For most elements this state is
 		   the same as PLAYING. */
+GST_INFO_OBJECT (self, "num_input_buffers=%d, num_output_buffers=%d", priv->num_input_buffers, priv->num_output_buffers);
 
 		g_object_set (self->inport,
 			      "buffercount", priv->num_input_buffers, NULL);

@@ -67,6 +67,9 @@ struct _GstGooVideoFilter
 	/*< protected >*/
 	GstPad* sinkpad;
 	GstPad* srcpad;
+	
+	/* this should be set by derived class when caps are known: */
+	GstCaps* src_caps;
 
 	/* This field is used to normalize timestamps to 0 */
 	OMX_S64 omx_normalize_timestamp;
