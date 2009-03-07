@@ -802,8 +802,8 @@ gst_goo_sinkpp_class_init (GstGooSinkPPClass* klass)
 	gst_klass->set_caps	= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_setcaps);
 	gst_klass->stop		= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_stop);
 	gst_klass->event	= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_event);
-	gst_klass->buffer_alloc =
-		GST_DEBUG_FUNCPTR (gst_goo_sinkpp_buffer_alloc);
+/*	gst_klass->buffer_alloc =
+		GST_DEBUG_FUNCPTR (gst_goo_sinkpp_buffer_alloc);  */
 
 	return;
 }

@@ -908,8 +908,8 @@ gst_goo_encjpeg_init (GstGooEncJpeg* self, GstGooEncJpegClass* klass)
 		(self->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_encjpeg_chain));
 	gst_pad_set_setcaps_function
 		(self->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_encjpeg_setcaps));
-	gst_pad_set_bufferalloc_function
-		(self->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_encjpeg_buffer_alloc));
+/*	gst_pad_set_bufferalloc_function
+		(self->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_encjpeg_buffer_alloc));   */
 	gst_element_add_pad (GST_ELEMENT (self), self->sinkpad);
 
 	pad_template = gst_element_class_get_pad_template
