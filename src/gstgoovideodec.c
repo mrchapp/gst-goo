@@ -60,7 +60,8 @@ static GstStaticPadTemplate src_factory =
 		GST_PAD_SRC,
 		GST_PAD_ALWAYS,
 		GST_STATIC_CAPS ("video/x-raw-yuv, "
-			"format = (fourcc) { UYVY, I420 }, "
+//			"format = (fourcc) { UYVY, I420 }, "
+			"format = (fourcc) { UYVY }, "  // Note: I420 seems to produce bad output, so I'm removing it for now so we don't accidentially negotiate that format --Rob
 			"width = (int) [16, 4096], "
 			"height = (int) [16, 4096], "
 			"framerate = (GstFraction) [1/1, 60/1]"));
@@ -226,7 +227,7 @@ gst_goo_videodec_transform_caps (GstGooVideoFilter* filter,
 static gboolean
 omx_sync (GstGooVideoDec* self, guint color_format, guint width, guint height)
 {
-	GST_DEBUG_OBJECT (self, "Synchronizing values to omx ports");
+	GST_DEBUG_OBJECT (self, "Synchronizing values to omx ports: color_format=%d, width=%d, height=%d", color_format, width, height);
 
 	g_assert (GST_GOO_VIDEO_FILTER(self)->component != NULL);
 	g_assert (GST_GOO_VIDEO_FILTER(self)->inport != NULL);
@@ -276,7 +277,9 @@ gst_goo_videodec_configure_caps (GstGooVideoFilter* filter,
 	parse_in_caps (in, self);
 
 	/* output capabilities */
+GST_DEBUG ("out caps %" GST_PTR_FORMAT, out);
 	parse_out_caps (out, &color_format, &width, &height);
+	filter->src_caps = gst_caps_ref (out);
 
 	if (goo_component_get_state (GST_GOO_VIDEO_FILTER(self)->component) == OMX_StateLoaded)
 	{

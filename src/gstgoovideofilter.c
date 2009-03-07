@@ -26,11 +26,11 @@
 
 #include "gstgoobuffer.h"
 #include "gstgoovideofilter.h"
+#include "gstgooutils.h"
+#include "gstghostbuffer.h"
 #include <gst/gstghostpad.h>
 #include <string.h>
 
-#define GST2OMX_TIMESTAMP(ts) (OMX_S64) ts / 1000;
-#define OMX2GST_TIMESTAMP(ts) (guint64) ts * 1000;
 
 GST_DEBUG_CATEGORY_STATIC (gst_goo_video_filter_debug);
 #define GST_CAT_DEFAULT gst_goo_video_filter_debug
@@ -239,10 +239,12 @@ static gboolean
 gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 {
 	GST_LOG ("");
+
 	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
 	gboolean ret;
+
 	g_assert (self->component != NULL);
 
 	switch (GST_EVENT_TYPE (event))
@@ -250,12 +252,12 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 		case GST_EVENT_NEWSEGMENT:
 			if ((self->srcpad)!= NULL)
 			{
-				GST_INFO ("New segement event");
-				priv->incount = 0;
-				priv->outcount = 0;
-				priv->flag_start = TRUE;
-				ret = gst_pad_push_event (self->srcpad, event);
-				break;
+			GST_INFO ("New segement event");
+			priv->incount = 0;
+			priv->outcount = 0;
+			priv->flag_start = TRUE;
+			ret = gst_pad_push_event (self->srcpad, event);
+			break;
 			}
 			break;
 			
@@ -279,13 +281,15 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 
 	GooComponent *peer_component;
 
+	GST_INFO ("");
+
 	if (!GOO_IS_TI_VIDEO_DECODER(self->component))
 	{
 		GST_INFO ("Tunneling only implemented for goo video decoders");
 		return FALSE;
 	}
 
-	peer_component = gst_goo_utils_get_peer_component (self->srcpad);
+	peer_component = gst_goo_utils_find_goo_component (self, GOO_TYPE_TI_POST_PROCESSOR);
 
 	if (G_UNLIKELY (peer_component == NULL))
 	{
@@ -317,7 +321,7 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 
 		GOO_PORT_GET_DEFINITION (peer_port)->format.video.eColorFormat =
 			GOO_PORT_GET_DEFINITION (self->outport)->format.video.eColorFormat;
-
+GST_INFO ("eColorFormat: %d", GOO_PORT_GET_DEFINITION (self->outport)->format.video.eColorFormat);
 		GOO_PORT_GET_DEFINITION (peer_port)->nBufferCountActual =
 			GOO_PORT_GET_DEFINITION (self->outport)->nBufferCountActual;
 	}
@@ -343,10 +347,99 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 }
 
 
+static int framenum = 0;
+
+static GstFlowReturn
+gst_goo_video_filter_chain2 (GstPad* pad, GstBuffer* buffer)
+{
+	GST_LOG ("");
+
+	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
+	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
+	GstGooAdapter* adapter = self->adapter;
+	GstFlowReturn ret = GST_FLOW_OK;
+	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
+
+GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+
+	if (self->component->cur_state != OMX_StateExecuting)
+	{
+		return GST_FLOW_OK;
+	}
+
+	if (goo_port_is_eos (self->inport))
+	{
+		GST_INFO ("port is eos");
+		return GST_FLOW_UNEXPECTED;
+	}
+
+	/** @todo GstGooAdapter! */
+	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
+	{
+		gst_goo_adapter_clear (adapter);
+	}
+
+	if (priv->incount == 0)
+	{
+		self->omx_normalize_timestamp	= GST2OMX_TIMESTAMP (timestamp);
+		GST_INFO ("omx_normalize_timestamp=%lld", self->omx_normalize_timestamp);
+	}
+
+	gst_goo_adapter_push (adapter, buffer);
+
+	int omxbufsiz;
+
+	if (priv->process_mode == STREAMMODE)
+		omxbufsiz = GOO_PORT_GET_DEFINITION (self->inport)->nBufferSize;
+	else
+		omxbufsiz = GST_BUFFER_SIZE (buffer);
+
+	while (gst_goo_adapter_available (adapter) >= omxbufsiz &&
+	       ret == GST_FLOW_OK && omxbufsiz != 0)
+	{
+		GST_DEBUG ("Adapter available=%d  omxbufsiz=%d", gst_goo_adapter_available (adapter), omxbufsiz);
+
+		OMX_BUFFERHEADERTYPE* omx_buffer;
+		omx_buffer = goo_port_grab_buffer (self->inport);
+		GST_DEBUG ("memcpy to buffer %d bytes", omxbufsiz);
+		gst_goo_adapter_peek (adapter, omxbufsiz, omx_buffer);
+		omx_buffer->nFilledLen = omxbufsiz;
+		gst_goo_adapter_flush (adapter, omxbufsiz);
+
+		/*This is done for first frame or when de base time are modified*/
+		if (priv->flag_start == TRUE)
+		{
+			GST_DEBUG_OBJECT (self, "OMX starttime flag %d \n",omx_buffer->nFlags );
+			omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+			priv->flag_start = FALSE;
+		}
+
+		GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
+				GST_TIME_ARGS (timestamp));
+
+		/* transfer timestamp to openmax */
+		if (GST_CLOCK_TIME_IS_VALID (timestamp))
+		{
+			omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP ((gint64)timestamp) - self->omx_normalize_timestamp;
+			GST_INFO_OBJECT (self, "%d: OMX timestamp = %lld", framenum++, omx_buffer->nTimeStamp);
+		}
+		else
+		{
+			GST_WARNING_OBJECT (self, "Invalid timestamp!");
+		}
+
+		priv->incount++;
+		goo_component_release_buffer (self->component, omx_buffer);
+		ret = GST_FLOW_OK;
+	}
+
+	return ret;
+}
+
 static GstFlowReturn
 gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 {
-	GST_LOG ("enter chain");
+	GST_LOG ("");
 
 	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
@@ -356,10 +449,9 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 	gint64 buffer_stamp = GST_BUFFER_TIMESTAMP (buffer);
 
-	if (priv->incount == 0)
-	{
-		self->omx_normalize_timestamp	= GST2OMX_TIMESTAMP (timestamp);
-	}
+// XXX somehow the first vide frame doesn't have a valid timestamp... but we know it should be zero:
+if (!GST_CLOCK_TIME_IS_VALID (timestamp))
+timestamp = buffer_stamp = GST_BUFFER_TIMESTAMP (buffer) = 0;
 	
 	if (goo_port_is_tunneled (self->inport))
 	{
@@ -382,17 +474,8 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 		goto fail;
 	}
 
-	if (goo_port_is_eos (self->inport))
-	{
-		GST_INFO ("port is eos");
-		ret = GST_FLOW_UNEXPECTED;
-		goto fail;
-	}
-
-	/** @todo GstGooAdapter! */
-	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT)) {
-		gst_goo_adapter_clear (adapter);
-	}
+	// XXX maybe all access to 'adapter' needs to be moved to chain2()?  could be weird race
+	// conditions between chain() and chain2() otherwise..
 
 	if (self->seek_active == TRUE)
 	{
@@ -431,6 +514,7 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 		{
 			GST_INFO ("going to idle");
 			goo_component_set_state_idle (self->component);
+
 		}
 
 		GST_INFO ("going to executing");
@@ -441,84 +525,45 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 	/** Function to perform post buffering processing **/
 	buffer = gst_goo_video_filter_extra_buffer_processing (self, GST_BUFFER (buffer));
 
-	gst_goo_adapter_push (adapter, buffer);
-
-	if (self->component->cur_state != OMX_StateExecuting)
-	{
-		goto done;
-	}
-
-	int omxbufsiz;
-
-	if (priv->process_mode == STREAMMODE)
-		omxbufsiz = GOO_PORT_GET_DEFINITION (self->inport)->nBufferSize;
-	else
-		omxbufsiz = GST_BUFFER_SIZE (buffer);
-
-	while (gst_goo_adapter_available (adapter) >= omxbufsiz &&
-	       ret == GST_FLOW_OK && omxbufsiz != 0)
-	{
-
-		GST_DEBUG ("Adapter available =%d  omxbufsiz = %d", gst_goo_adapter_available (adapter), omxbufsiz);
-
-		OMX_BUFFERHEADERTYPE* omx_buffer;
-		omx_buffer = goo_port_grab_buffer (self->inport);
-		GST_DEBUG ("memcpy to buffer %d bytes", omxbufsiz);
-		gst_goo_adapter_peek (adapter, omxbufsiz, omx_buffer);
-		omx_buffer->nFilledLen = omxbufsiz;
-		gst_goo_adapter_flush (adapter, omxbufsiz);
-
-		/*This is done for first frame or when de base time are modified*/
-		if (priv->flag_start == TRUE){
-			GST_DEBUG_OBJECT (self, "OMX starttime flag %d \n",omx_buffer->nFlags );
-			omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
-			priv->flag_start = FALSE;
-
-		}
-
-		/* transfer timestamp to openmax */
-		{
-
-			GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
-					GST_TIME_ARGS (timestamp));
-
-			if (GST_CLOCK_TIME_IS_VALID (timestamp))
-			{
-				gint64 buffer_ts = (gint64)timestamp;
-
-				omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP (buffer_ts);
-
-				GST_INFO_OBJECT (self, "OMX timestamp before normalize = %lld", omx_buffer->nTimeStamp);
-
-				omx_buffer->nTimeStamp = omx_buffer->nTimeStamp - self->omx_normalize_timestamp;
-
-				GST_INFO_OBJECT (self, "OMX timestamp = %lld", omx_buffer->nTimeStamp);
-
-			} else GST_WARNING_OBJECT (self, "Invalid timestamp!");
-		}
-
-		priv->incount++;
-		goo_component_release_buffer (self->component, omx_buffer);
-		ret = GST_FLOW_OK;
-	}
-
 	if (goo_port_is_tunneled (self->outport))
 	{
-		/** @todo send a ghost buffer */
-		GstBuffer *ghost_buffer = (GstBuffer*) gst_ghost_buffer_new ();
-		GST_BUFFER_TIMESTAMP (ghost_buffer) = timestamp;
+		GstGhostBuffer *ghost_buffer = gst_ghost_buffer_new ();
+		GST_BUFFER_TIMESTAMP (ghost_buffer) = GST_BUFFER_TIMESTAMP (buffer);
+		GST_BUFFER_DURATION (ghost_buffer)  = GST_BUFFER_DURATION (buffer);
+		GST_BUFFER_SIZE (ghost_buffer)      = 0;
+
+		ghost_buffer->chain  = gst_goo_video_filter_chain2;
+		ghost_buffer->pad    = gst_object_ref(pad);
+GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+		ghost_buffer->buffer = gst_buffer_ref(buffer);
+
+		if (self->src_caps)
+		{
+			GST_DEBUG ("setting caps on ghost buffer");
+			GST_BUFFER_CAPS (ghost_buffer) = self->src_caps;
+			/* we only need to set the caps when they change.. after
+			 * that, we can leave them as null:
+			 */
+			self->src_caps = NULL;  // ?? do I need to unref after the gst_pad_push()?
+		}
 		gst_pad_push (self->srcpad, ghost_buffer);
+	}
+	else
+	{
+		ret = gst_goo_video_filter_chain2 (pad, buffer);
 	}
 
 	goto done;
 
 fail:
-	gst_buffer_unref (buffer);
+	GST_DEBUG ("fail");
 	gst_goo_adapter_clear (adapter);
 done:
+	gst_buffer_unref (buffer);
 	gst_object_unref (self);
 	return ret;
 }
+
 
 GST_BOILERPLATE (GstGooVideoFilter, gst_goo_video_filter, GstElement, GST_TYPE_ELEMENT);
 
@@ -546,10 +591,10 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
 		if (!(goo_port_is_tunneled (self->inport)))
 		{
-			GST_INFO ("going to idle");
-			goo_component_set_state_idle (self->component);
-			GST_INFO ("going to loaded");
-			goo_component_set_state_loaded (self->component);
+		GST_INFO ("going to idle");
+		goo_component_set_state_idle (self->component);
+		GST_INFO ("going to loaded");
+		goo_component_set_state_loaded (self->component);
 		}
 		break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
@@ -1003,9 +1048,11 @@ gst_goo_video_filter_setcaps (GstPad* pad, GstCaps* caps)
 
 	otherpad = (pad == self->srcpad) ? self->sinkpad : self->srcpad;
 	otherpeer = gst_pad_get_peer (otherpad);
-	
-	GstPad *otropad;
-  	GstElement *vecino;
+#define DUMP_PAD(x) GST_DEBUG (#x "=0x%08x (%s)", (x), (x) ? GST_PAD_NAME (x) : "")
+	DUMP_PAD(otherpad);
+	DUMP_PAD(otherpeer);
+	DUMP_PAD(self->srcpad);
+	DUMP_PAD(self->sinkpad);
 
 	/* if we get called recursively, we bail out now to avoid an
 	 * infinite loop. */
@@ -1183,10 +1230,13 @@ gst_goo_video_filter_setcaps (GstPad* pad, GstCaps* caps)
 	}
 
 	if (!(ret = gst_goo_video_filter_configure_caps (self, incaps, outcaps)))
-	{	
+	{
 		goto failed_configure;
 	}
+
+	/* we know this will work, we implement the setcaps */
 	gst_pad_set_caps (otherpad, othercaps);
+
 done:
 	if (otherpeer)
 	{
@@ -1228,7 +1278,7 @@ could_not_fixate:
 	}
 peer_no_accept:
 	{
-		DEBUG_CAPS (otherpad, othercaps);
+		LOG_CAPS (otherpad, othercaps);
 		ret = FALSE;
 		goto done;
 	}

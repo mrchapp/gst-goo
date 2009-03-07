@@ -30,6 +30,9 @@
 
 #include "gstdasfsink.h"
 #include "gstgoovideofilter.h"
+#include "gstgooutils.h"
+#include "gstghostbuffer.h"
+
 
 #define NUM_INPUT_BUFFERS_DEFAULT 4
 
@@ -55,6 +58,11 @@ enum
 #define GSTREAMER_CLOCK 0
 #define OMX_CLOCK 1
 #define AUTO_CLOCK 2
+
+#define DEFAULT_CLOCK_SOURCE    OMX_CLOCK
+#define DEFAULT_CLOCK_REQUIRED  OMX_CLOCK
+
+
 
 #define GST_DASF_SINK_GET_PRIVATE(obj) \
 	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_DASF_SINK, GstDasfSinkPrivate))
@@ -226,41 +234,21 @@ gst_dasf_sink_mixer_interface_init (GstMixerClass* iface)
 	return;
 }
 
-static void
-factory_get_video_decoder(GooComponent *component, GooTiVideoDecoder **video_dec)
-{
-	if(*video_dec == NULL)
-		if(g_type_is_a(G_OBJECT_TYPE(component), GOO_TYPE_TI_VIDEO_DECODER))
-		{
-			*video_dec = GOO_TI_VIDEO_DECODER(component);
-		}
-}
-
-
 static guint
 gst_dasf_clock_required (GstDasfSink* self)
 {
 	guint retvalue = 0;
-	GooComponentFactory *factory = NULL;
 	GooTiPostProcessor *peer_component = NULL;
 
-	factory = GOO_COMPONENT_FACTORY( goo_object_get_owner(GOO_OBJECT(self->component)));
-
-	if(factory == NULL)
-		goto done;
-
-	GooList *list = factory->components;
-	GooTiVideoDecoder *video_decoder = NULL;
-
-	goo_list_foreach(list, (GFunc)factory_get_video_decoder, &video_decoder);
+	GooTiVideoDecoder *video_decoder = gst_goo_utils_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_VIDEO_DECODER);
 
 	if(video_decoder == NULL)
 		goto done;
 
-	GST_DEBUG_OBJECT (self, "Found a video decoder %s\n", GOO_OBJECT_NAME(GOO_OBJECT(video_decoder)));
+	GST_DEBUG_OBJECT (self, "Found a video decoder %s", GOO_OBJECT_NAME(GOO_OBJECT(video_decoder)));
 	GstGooVideoFilter *gst_video_dec =  GST_GOO_VIDEO_FILTER(g_object_get_data(G_OBJECT(video_decoder), "gst"));
 
-	peer_component = GOO_TI_POST_PROCESSOR (gst_goo_utils_get_peer_component (gst_video_dec->srcpad));
+	peer_component = GOO_TI_POST_PROCESSOR (gst_goo_utils_find_goo_component (GST_ELEMENT (gst_video_dec), GOO_TYPE_TI_POST_PROCESSOR));
 	if (peer_component == NULL)
 		goto done;
 
@@ -268,112 +256,71 @@ gst_dasf_clock_required (GstDasfSink* self)
 	retvalue = 1;
 
 	done:
-	if (factory != NULL)
-		g_object_unref (factory);
 	return retvalue;
 }
-
 
 static void
 gst_dasf_enable (GstDasfSink* self)
 {
 	GST_INFO ("");
-	GstPad *peer;
-	GstElement *prev_element;
-	GooComponent *component;
+	GooComponent *component = self->component;
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (self);
 
-	if (self->component != NULL)
+	if (self->component == NULL)
 	{
-		return;
+		component = gst_goo_utils_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_AUDIO_COMPONENT);
+
+		if (component == NULL)
+			return;
+
+		self->component = GOO_TI_AUDIO_COMPONENT (component);
 	}
 
-	peer = gst_pad_get_peer (GST_BASE_AUDIO_SINK_PAD (self));
-
-	if (G_UNLIKELY (peer == NULL))
+	if (self->pp == NULL)
 	{
-		GST_INFO ("No previous pad");
-		return;
+		/* we haven't yet found a post-processor component.. it could
+		 * be that it hasn't been created yet:
+		 */
+		priv->clock_required = gst_dasf_clock_required (self);
+
+		/* are there cases where there legitimately won't be a
+		 * postprocessor, not just because it hasn't been created
+		 * yet??
+		 */
+		if (self->pp == NULL)
+			return;
+
+		if (priv->clock_source == AUTO_CLOCK)
+		{
+			priv->clock_source = priv->clock_required;
+		}
+		GST_INFO ("clock_required=%d, clock_source=%d", priv->clock_required, priv->clock_source);
+
+		/*  Check if OMX will be the clock source and get a new clock instance
+			if true */
+		if (priv->clock_source == OMX_CLOCK)
+		{
+			self->clock =
+				goo_component_factory_get_component( self->factory,
+								    GOO_TI_CLOCK);
+
+			GST_DEBUG ("Clock component clock refcount %d",
+					G_OBJECT(self->clock)->ref_count);
+		}
+
+		goo_ti_audio_component_set_dasf_mode (self->component, TRUE);
+		GST_DEBUG_OBJECT (self, "set data path");
+		goo_ti_audio_component_set_data_path (self->component, 0);
+
+		if (priv->clock_source == OMX_CLOCK)
+		{
+			goo_component_set_clock (component, self->clock);
+			GST_DEBUG_OBJECT (self, "Setting clock to idle");
+			goo_component_set_state_idle (self->clock);
+			GST_DEBUG_OBJECT (self, "Setting clock to executing");
+			goo_component_set_state_executing(self->clock);
+		}
 	}
-
-	prev_element = GST_ELEMENT (gst_pad_get_parent (peer));
-
-	if (G_UNLIKELY (prev_element == NULL))
-	{
-		GST_INFO ("Cannot find a previous element");
-		goto done;
-	}
-
-	/** expecting a capsfilter between dasfsink and goo audio component **/
-	while (GST_IS_BASE_TRANSFORM (prev_element))
-	{
-		GST_DEBUG_OBJECT(self, "previous element name: %s", gst_element_get_name (prev_element));
-
-		gst_object_unref (peer);
-		peer = gst_pad_get_peer (GST_BASE_TRANSFORM_SINK_PAD (prev_element));
-		gst_object_unref (prev_element);
-		prev_element = GST_ELEMENT(gst_pad_get_parent (peer)) ;
-
-		GST_DEBUG_OBJECT (self, "one before element name: %s", gst_element_get_name(prev_element));
-	}
-
-	/** capsfilter might be found
-	 *  element previous to the caps filter should be goo **/
-
-	component = GOO_COMPONENT (g_object_get_data (G_OBJECT (prev_element), "goo"));
-
-	if (G_UNLIKELY (component == NULL))
-	{
-		GST_INFO ("Previous element does not have a Goo component");
-		goto done;
-	}
-
-	if (!GOO_IS_TI_AUDIO_COMPONENT (component))
-	{
-		GST_WARNING ("The component in previous element is not TI Audio");
-		goto done;
-	}
-
-
-	self->component = GOO_TI_AUDIO_COMPONENT (component);
-	priv->clock_required = gst_dasf_clock_required (self);
-	if (priv->clock_source == AUTO_CLOCK)
-	{
-		priv->clock_source = priv->clock_required;
-	}
-
-	/*  Check if OMX will be the clock source and get a new clock instance
-		if true */
-	if (priv->clock_source == OMX_CLOCK)
-	{
-
-		self->clock =
-			goo_component_factory_get_component( self->factory,
-							    GOO_TI_CLOCK);
-
-		GST_DEBUG ("Clock component clock refcount %d",
-				G_OBJECT(self->clock)->ref_count);
-	}
-
-
-	goo_ti_audio_component_set_dasf_mode (self->component, TRUE);
-	GST_DEBUG_OBJECT (self, "set data path");
-	goo_ti_audio_component_set_data_path (self->component, 0);
-
-	if (priv->clock_source == OMX_CLOCK)
-	{
-		goo_component_set_clock (component, self->clock);
-
-		GST_DEBUG_OBJECT (self, "Settting clock to idle");
-		goo_component_set_state_idle (self->clock);
-		GST_DEBUG_OBJECT (self, "Settting clock to executing");
-		goo_component_set_state_executing(self->clock);
-
-	}
-
-done:
-	gst_object_unref (peer);
-	gst_object_unref (prev_element);
 
 	return;
 }
@@ -381,7 +328,6 @@ done:
 /* This group of functions need to be overriden so that the ring
  * buffer becomes useless in our implementation
  */
-
 static gboolean
 gst_dasf_sink_open_device (GstAudioSink *sink)
 {
@@ -432,7 +378,12 @@ gst_dasf_sink_write_device (GstAudioSink *sink, gpointer data, guint length)
 	GstDasfSink* self = GST_DASF_SINK (sink);
 	guint ret = 0;
 
-	GST_LOG ("Writting %d bytes", ret);
+	/* note: we pretend to consume the entire buffer.. otherwise gstaudiosink
+	 * get stuck in an infinite loop:
+	 */
+//	ret = length;
+
+	GST_LOG ("Writing %d bytes", ret);
 
 	return ret;
 }
@@ -467,8 +418,43 @@ gst_dasf_sink_render (GstBaseSink *sink, GstBuffer *buffer)
 
 	GST_LOG ("");
 
+	/* if needed, call deferred processing from the decoder: */
+	if (GST_IS_GHOST_BUFFER (buffer))
+	{
+		GstGhostBuffer *ghost_buffer = GST_GHOST_BUFFER(buffer);
+		ghost_buffer->chain (ghost_buffer->pad, ghost_buffer->buffer);
+		gst_object_unref (ghost_buffer->pad);
+		gst_buffer_unref (ghost_buffer->buffer);
+	}
+
 	return ret;
 }
+
+static gboolean
+gst_dasf_sink_setcaps (GstBaseSink *sink, GstCaps *caps)
+{
+	GST_LOG ("");
+
+	/* we need to override this method to bypass some initialization done
+	 * in gstbaseaudiosink, which makes sense for real sinks but not for
+	 * dummy sinks.  (Perhaps we should just extend gstbasesink directly?)
+	 */
+	return TRUE;
+}
+
+static GstClock *
+gst_dasf_sink_provide_clock (GstElement *elem)
+{
+	GST_LOG ("");
+
+	/* we need to override this method to return NULL, since
+	 * playback doesn't work at normal speed if we use
+	 * GstAudioSinkClock, but does work with the default
+	 * GstSystemClock...
+	 */
+	return NULL;
+}
+
 
 static GstFlowReturn
 gst_dasf_sink_preroll (GstBaseSink *sink, GstBuffer *buffer)
@@ -512,6 +498,7 @@ _do_init (GType dasfsink_type)
 GST_BOILERPLATE_FULL (GstDasfSink, gst_dasf_sink, GstAudioSink,
 		      GST_TYPE_AUDIO_SINK, _do_init);
 
+
 static GstStateChangeReturn
 gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 {
@@ -523,9 +510,13 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 	switch (transition)
 	{
 		case GST_STATE_CHANGE_NULL_TO_READY:
-			gst_dasf_enable (self);
+			GST_LOG ("GST_STATE_CHANGE_NULL_TO_READY.. noop");
+			break;
+		case GST_STATE_CHANGE_READY_TO_PAUSED:
+			GST_LOG ("GST_STATE_CHANGE_READY_TO_PAUSED.. noop");
 			break;
 		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+			GST_LOG ("GST_STATE_CHANGE_PLAYING_TO_PAUSED");
 			if (priv->clock_source == OMX_CLOCK)
 			{
 				g_object_set (G_OBJECT (self), "halted", TRUE, NULL);
@@ -533,10 +524,13 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 			}
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+			GST_LOG ("GST_STATE_CHANGE_PAUSED_TO_PLAYING");
 			if (priv->clock_source == OMX_CLOCK)
 			{
 				if(priv->first_time_playing)
+				{
 					priv->first_time_playing = FALSE;
+				}
 				else
 				{
 					g_object_set (G_OBJECT (self), "halted", FALSE, NULL);
@@ -545,6 +539,7 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 			}
 			break;
 		case GST_STATE_CHANGE_PAUSED_TO_READY:
+			GST_LOG ("GST_STATE_CHANGE_PAUSED_TO_READY");
 			if (priv->clock_source == OMX_CLOCK)
 			{
 				g_object_set (G_OBJECT (self), "halted", FALSE, NULL);
@@ -555,6 +550,7 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 			}
 			break;
 		default:
+			GST_LOG ("transition=%d", transition);
 			break;
 	}
 
@@ -564,6 +560,7 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 void
 gst_dasf_sink_set_halted (GstDasfSink* self, gboolean halted)
 {
+	GST_LOG ("");
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (self);
 
 	GooComponent *component = NULL;
@@ -707,6 +704,7 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	GstAudioSinkClass* gst_klass;
 	GstBaseAudioSinkClass *gst_base_audio_klass;
 	GstBaseSinkClass* gst_base_klass;
+	GstElementClass *gst_element_klass;
 
 	/* gobject */
 	g_klass = G_OBJECT_CLASS (klass);
@@ -729,7 +727,7 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	pspec = g_param_spec_enum ("clock-source", "Clock Source",
 				   "Selects the clock source to synchronize",
 				   GST_DASF_SINK_CLOCK_SOURCE,
-				   AUTO_CLOCK, G_PARAM_READWRITE);
+				   DEFAULT_CLOCK_SOURCE, G_PARAM_READWRITE);
 
 	g_object_class_install_property (g_klass, PROP_CLOCK_SOURCE,
 					 pspec);
@@ -737,7 +735,7 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	pspec = g_param_spec_enum ("clock-required", "Clock Required",
 				   "The clock more suitable for the pipeline",
 				   GST_DASF_SINK_CLOCK_SOURCE,
-				   GSTREAMER_CLOCK, G_PARAM_READABLE);
+				   DEFAULT_CLOCK_REQUIRED, G_PARAM_READABLE);
 
 	g_object_class_install_property (g_klass, PROP_CLOCK_REQUIRED,
 					 pspec);
@@ -753,7 +751,7 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	gst_klass = GST_AUDIO_SINK_CLASS (klass);
 	gst_base_audio_klass = GST_BASE_AUDIO_SINK_CLASS (klass);
 	gst_base_klass = GST_BASE_SINK_CLASS (klass);
-
+	gst_element_klass = GST_ELEMENT_CLASS (klass);
 
 	/** GST AUDIO SINK **/
 	gst_klass->open =
@@ -776,6 +774,12 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_preroll);
 	gst_base_klass->render =
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_render);
+	gst_base_klass->set_caps =
+		GST_DEBUG_FUNCPTR (gst_dasf_sink_setcaps);
+
+	/* GST ELEMENT */
+	gst_element_klass->provide_clock =
+		GST_DEBUG_FUNCPTR (gst_dasf_sink_provide_clock);
 
 	GST_ELEMENT_CLASS (klass)->change_state =
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_change_state);
@@ -793,8 +797,8 @@ gst_dasf_sink_init (GstDasfSink* self, GstDasfSinkClass* klass)
 	priv->incount = 0;
 	priv->volume = 100;
 	priv->mute = FALSE;
-	priv->clock_source = AUTO_CLOCK;
-	priv->clock_required = GSTREAMER_CLOCK;
+	priv->clock_source = DEFAULT_CLOCK_SOURCE;
+	priv->clock_required = DEFAULT_CLOCK_REQUIRED;
 	priv->first_time_playing = TRUE;
 	self->component = NULL;
 	self->pp = NULL;
@@ -809,6 +813,8 @@ gst_dasf_sink_init (GstDasfSink* self, GstDasfSinkClass* klass)
 	self->tracks = g_slist_append (self->tracks, track);
 
 	self->factory = goo_ti_component_factory_get_instance ();
+
+	gst_goo_util_register_pipeline_change_cb( self, gst_dasf_enable );
 
 	return;
 }

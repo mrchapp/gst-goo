@@ -331,6 +331,7 @@ gst_goo_decaac_check_fixed_src_caps (GstGooAudioFilter* filter)
 								NULL
 								);
 
+	filter->src_caps = gst_caps_ref (src_caps);
 	gst_pad_set_caps (GST_GOO_AUDIO_FILTER (self)->srcpad, src_caps);
 	gst_caps_unref (src_caps);
 
@@ -380,6 +381,7 @@ gst_goo_decaac_class_init (GstGooDecAacClass* klass)
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decaac_check_fixed_src_caps);
     gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decaac_process_mode_default);
+
 	return;
 }
 
@@ -392,6 +394,8 @@ gst_goo_decaac_init (GstGooDecAac* self, GstGooDecAacClass* klass)
 		(GST_GOO_AUDIO_FILTER (self)->factory, GOO_TI_AAC_DECODER);
 
 	GooComponent* component = GST_GOO_AUDIO_FILTER (self)->component;
+
+GST_DEBUG ("component=0x%08x\n", component);
 
 	/* Select Stream mode operation as default */
 	g_object_set (G_OBJECT (component), "dasf-mode", FALSE,

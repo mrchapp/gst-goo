@@ -43,7 +43,10 @@ typedef struct _GstGhostBufferClass GstGhostBufferClass;
 
 struct _GstGhostBuffer
 {
-     GstBuffer buffer;
+     GstBuffer super;
+     GstPadChainFunction chain;   /* the deferred chain function of the decoder */
+     GstPad    *pad;
+     GstBuffer *buffer;
 };
 
 struct _GstGhostBufferClass
@@ -52,7 +55,7 @@ struct _GstGhostBufferClass
 };
 
 GType gst_ghost_buffer_get_type (void);
-GstBuffer* gst_ghost_buffer_new ();
+GstGhostBuffer* gst_ghost_buffer_new ();
 
 G_END_DECLS
 

@@ -26,9 +26,11 @@
 
 #include "gstgoobuffer.h"
 #include "gstgooaudiofilter.h"
+#include "gstgooutils.h"
+#include "gstghostbuffer.h"
 #include <string.h>
 
-#define CONVERSION 1000000
+#define CONVERSION xxx
 
 GST_DEBUG_CATEGORY_STATIC (gst_goo_audio_filter_debug);
 #define GST_CAT_DEFAULT gst_goo_audio_filter_debug
@@ -156,9 +158,9 @@ gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 		memmove (GST_BUFFER_DATA (gst_buffer),
 			buffer->pBuffer, buffer->nFilledLen);
 		goo_component_release_buffer (component, buffer);
-		
+
 	}
-	
+
 	priv->outcount++;
 
 	/** FIXME GStreamer should not insert the header.  OMX component should take
@@ -171,12 +173,12 @@ gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	GST_BUFFER_DURATION (gst_buffer) = self->duration;
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
 	GST_BUFFER_TIMESTAMP (gst_buffer) = self->audio_timestamp;
-	
+
 	if (self->audio_timestamp != -1)
 	{
 		self->audio_timestamp += self->duration;
 	}
-	
+
 	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
 	gst_pad_push (self->srcpad, gst_buffer);
 
@@ -288,8 +290,10 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 	return ret;
 }
 
+static int framenum = 0;
+
 static GstFlowReturn
-gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
+gst_goo_audio_filter_chain2 (GstPad* pad, GstBuffer* buffer)
 {
 	GST_LOG ("");
 
@@ -297,113 +301,35 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 	GstGooAudioFilterPrivate* priv = GST_GOO_AUDIO_FILTER_GET_PRIVATE (self);
 	GstGooAdapter* adapter = self->adapter;
 	GstFlowReturn ret = GST_FLOW_OK;
-	static OMX_S64 omx_normalize_timestamp;
 
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
-	gint64 buffer_stamp = GST_BUFFER_TIMESTAMP (buffer);
 
-	if (priv->incount == 0)
+GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+
+	if (self->component->cur_state != OMX_StateExecuting)
 	{
-		omx_normalize_timestamp	= (gint64)timestamp / CONVERSION;
-	}
-
-	if (goo_port_is_tunneled (self->inport))
-	{
-		/* shall we send a ghost buffer here ? */
-		GST_INFO ("port is tunneled");
-		ret = GST_FLOW_OK;
-
-		GST_DEBUG_OBJECT (self, "Buffer timestamp: time %" GST_TIME_FORMAT,
-						GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
-
-		GST_DEBUG_OBJECT (self, "Buffer duration: %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DURATION (buffer)));
-
-		GST_DEBUG_OBJECT (self, "Pushing buffer to next element. Size =%d", GST_BUFFER_SIZE (buffer));
-
-		/** FIXME GStreamer should not insert the header.  OMX component should take
-		 * care of it.	Remove this function upon resolution of DR OMAPS00140835 and
-		 * OMAPS00140836 **/
- 		priv->outcount++;
-		buffer = gst_goo_audio_filter_insert_header (self, buffer, priv->outcount);
-
-		gst_buffer_set_caps (buffer, GST_PAD_CAPS (self->srcpad));
-		gst_pad_push (self->srcpad, buffer);
-
-		goto done;
+		return GST_FLOW_OK;
 	}
 
 	if (goo_port_is_eos (self->inport))
 	{
 		GST_INFO ("port is eos");
-		ret = GST_FLOW_UNEXPECTED;
-		goto fail;
+		return GST_FLOW_UNEXPECTED;
 	}
 
 	/** @todo GstGooAdapter! */
-	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT)) {
+	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
+	{
 		gst_goo_adapter_clear (adapter);
 	}
-	
-	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+
+	if (priv->incount == 0)
 	{
-		GST_GOO_AUDIO_FILTER (self)->audio_timestamp = 
-			GST_BUFFER_TIMESTAMP (buffer);
+		self->omx_normalize_timestamp	= GST2OMX_TIMESTAMP (timestamp);
+		GST_INFO ("omx_normalize_timestamp=%lld", self->omx_normalize_timestamp);
 	}
-
-	if (self->seek_active == TRUE)
-	{
-		if (buffer_stamp < self->seek_time)
-		{
-			 GST_DEBUG_OBJECT (self, "Dropping buffer at %"GST_TIME_FORMAT, 
-				GST_TIME_ARGS (buffer_stamp));
-			gst_goo_adapter_clear (adapter);
-			goto done;
-		}
-		else
-		{
-			GST_DEBUG_OBJECT (self, "Continue buffer at %"GST_TIME_FORMAT, 
-				GST_TIME_ARGS (buffer_stamp));
-			self->seek_active = FALSE;
-		}
-	}
-
-	if (priv->incount == 0 &&
-	    goo_component_get_state (self->component) == OMX_StateLoaded)
-	{
-
-		/** Some filters require header processing,
-			apended to the first buffer **/
-		buffer = gst_goo_audio_filter_codec_data_processing (self, GST_BUFFER (buffer));
-
-		/** Todo: Use the gst_caps_fixatecaps_func to make
-		    this cleaner **/
-		if (!gst_goo_audio_filter_check_fixed_src_caps (self))
-			return GST_FLOW_NOT_NEGOTIATED;
-		/** Remove gst_goo_audio_filter_check_fixed_src_caps function when fixed **/
-
-		g_object_set (self->inport,
-				"buffercount",
-				priv->num_input_buffers, NULL);
-		g_object_set (self->outport,
-				"buffercount",
-				priv->num_output_buffers, NULL);
-
-		GST_INFO ("going to idle");
-		goo_component_set_state_idle (self->component);
-		GST_INFO ("going to executing");
-		goo_component_set_state_executing (self->component);
-
-	}
-
-	/** Function to perform post buffering processing **/
-	buffer = gst_goo_audio_filter_extra_buffer_processing (self, GST_BUFFER (buffer));
 
 	gst_goo_adapter_push (adapter, buffer);
-
-	if (self->component->cur_state != OMX_StateExecuting)
-	{
-		goto done;
-	}
 
 	int omxbufsiz;
 
@@ -415,8 +341,7 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 	while (gst_goo_adapter_available (adapter) >= omxbufsiz &&
 	       ret == GST_FLOW_OK && omxbufsiz != 0)
 	{
-
-		GST_DEBUG ("Adapter available =%d  omxbufsiz = %d", gst_goo_adapter_available (adapter), omxbufsiz);
+		GST_DEBUG ("Adapter available=%d  omxbufsiz=%d", gst_goo_adapter_available (adapter), omxbufsiz);
 
 		OMX_BUFFERHEADERTYPE* omx_buffer;
 		guint8 *bufData;
@@ -455,18 +380,18 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 			gst_goo_adapter_flush (adapter, omxbufsiz);
 		}
 
+		GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
+				GST_TIME_ARGS (timestamp));
+
 		/* transfer timestamp to openmax */
+		if (GST_CLOCK_TIME_IS_VALID (timestamp))
 		{
-			GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
-					GST_TIME_ARGS (timestamp));
-
-			if (GST_CLOCK_TIME_IS_VALID (timestamp))
-			{
-				gint64 buffer_ts = (gint64)timestamp;
-				omx_buffer->nTimeStamp = (OMX_S64)buffer_ts / CONVERSION;
-				omx_buffer->nTimeStamp = omx_buffer->nTimeStamp - omx_normalize_timestamp;
-
-			} else GST_WARNING_OBJECT (self, "Invalid timestamp!");
+			omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP ((gint64)timestamp) - self->omx_normalize_timestamp;
+			GST_INFO_OBJECT (self, "%d: OMX timestamp = %lld", framenum++, omx_buffer->nTimeStamp);
+		}
+		else
+		{
+			GST_WARNING_OBJECT (self, "Invalid timestamp!");
 		}
 
 		priv->incount++;
@@ -474,21 +399,139 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 		ret = GST_FLOW_OK;
 	}
 
+	return ret;
+}
+
+static GstFlowReturn
+gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
+{
+	GST_LOG ("");
+
+	GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (gst_pad_get_parent (pad));
+	GstGooAudioFilterPrivate* priv = GST_GOO_AUDIO_FILTER_GET_PRIVATE (self);
+	GstGooAdapter* adapter = self->adapter;
+	GstFlowReturn ret = GST_FLOW_OK;
+
+	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
+	gint64 buffer_stamp = GST_BUFFER_TIMESTAMP (buffer);
+
+	if (goo_port_is_tunneled (self->inport))
+	{
+		/* shall we send a ghost buffer here ? */
+		GST_INFO ("port is tunneled");
+		ret = GST_FLOW_OK;
+
+		GST_DEBUG_OBJECT (self, "Buffer timestamp: time %" GST_TIME_FORMAT,
+						GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+
+		GST_DEBUG_OBJECT (self, "Buffer duration: %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DURATION (buffer)));
+
+		GST_DEBUG_OBJECT (self, "Pushing buffer to next element. Size =%d", GST_BUFFER_SIZE (buffer));
+
+		/** FIXME GStreamer should not insert the header.  OMX component should take
+		 * care of it.	Remove this function upon resolution of DR OMAPS00140835 and
+		 * OMAPS00140836 **/
+ 		priv->outcount++;
+		buffer = gst_goo_audio_filter_insert_header (self, buffer, priv->outcount);
+
+		gst_buffer_set_caps (buffer, GST_PAD_CAPS (self->srcpad));
+		gst_pad_push (self->srcpad, buffer);
+
+		goto done;
+	}
+
+	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+	{
+		GST_GOO_AUDIO_FILTER (self)->audio_timestamp =
+			GST_BUFFER_TIMESTAMP (buffer);
+	}
+
+	// XXX maybe all access to 'adapter' needs to be moved to chain2()?  could be weird race
+	// conditions between chain() and chain2() otherwise..
+
+	if (self->seek_active == TRUE)
+	{
+		if (buffer_stamp < self->seek_time)
+		{
+			 GST_DEBUG_OBJECT (self, "Dropping buffer at %"GST_TIME_FORMAT,
+				GST_TIME_ARGS (buffer_stamp));
+			gst_goo_adapter_clear (adapter);
+			goto done;
+		}
+		else
+		{
+			GST_DEBUG_OBJECT (self, "Continue buffer at %"GST_TIME_FORMAT,
+				GST_TIME_ARGS (buffer_stamp));
+			self->seek_active = FALSE;
+		}
+	}
+
+	if (priv->incount == 0 &&
+	    goo_component_get_state (self->component) == OMX_StateLoaded)
+	{
+
+		/** Some filters require header processing,
+			apended to the first buffer **/
+		buffer = gst_goo_audio_filter_codec_data_processing (self, GST_BUFFER (buffer));
+
+		/** Todo: Use the gst_caps_fixatecaps_func to make
+		    this cleaner **/
+		if (!gst_goo_audio_filter_check_fixed_src_caps (self))
+			return GST_FLOW_NOT_NEGOTIATED;
+		/** Remove gst_goo_audio_filter_check_fixed_src_caps function when fixed **/
+
+		g_object_set (self->inport,
+				"buffercount",
+				priv->num_input_buffers, NULL);
+		g_object_set (self->outport,
+				"buffercount",
+				priv->num_output_buffers, NULL);
+
+		GST_INFO ("going to idle");
+		goo_component_set_state_idle (self->component);
+		GST_INFO ("going to executing");
+		goo_component_set_state_executing (self->component);
+
+	}
+
+	/** Function to perform post buffering processing **/
+	buffer = gst_goo_audio_filter_extra_buffer_processing (self, GST_BUFFER (buffer));
+
 	if (goo_port_is_tunneled (self->outport))
 	{
-		GST_DEBUG_OBJECT (self, "Outport is tunnelded");
-		/** @todo send a ghost buffer */
-		GstBuffer *ghost_buffer = (GstBuffer*) gst_ghost_buffer_new ();
-		GST_BUFFER_TIMESTAMP (ghost_buffer) = timestamp;
+		GstGhostBuffer *ghost_buffer = gst_ghost_buffer_new ();
+		GST_BUFFER_TIMESTAMP (ghost_buffer) = GST_BUFFER_TIMESTAMP (buffer);
+		GST_BUFFER_DURATION (ghost_buffer)  = GST_BUFFER_DURATION (buffer);
+		GST_BUFFER_SIZE (ghost_buffer)      = 0;
+
+		ghost_buffer->chain  = gst_goo_audio_filter_chain2;
+		ghost_buffer->pad    = gst_object_ref(pad);
+GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT")", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)));
+		ghost_buffer->buffer = gst_buffer_ref(buffer);
+
+		if (self->src_caps)
+		{
+			GST_DEBUG ("setting caps on ghost buffer");
+			GST_BUFFER_CAPS (ghost_buffer) = self->src_caps;
+			/* we only need to set the caps when they change.. after
+			 * that, we can leave them as null:
+			 */
+			self->src_caps = NULL;  // ?? do I need to unref after the gst_pad_push()?
+		}
 		gst_pad_push (self->srcpad, ghost_buffer);
+	}
+	else
+	{
+		ret = gst_goo_audio_filter_chain2 (pad, buffer);
 	}
 
 	goto done;
 
 fail:
-	gst_buffer_unref (buffer);
+	GST_DEBUG ("fail");
 	gst_goo_adapter_clear (adapter);
 done:
+	gst_buffer_unref (buffer);
 	gst_object_unref (self);
 	return ret;
 }

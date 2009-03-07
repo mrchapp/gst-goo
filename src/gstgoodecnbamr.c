@@ -314,6 +314,7 @@ gst_goo_decnbamr_check_fixed_src_caps (GstGooAudioFilter *filter)
 								"channels", G_TYPE_INT, param->nChannels,
 								NULL
 								);
+	filter->src_caps = gst_caps_ref (src_caps);
 
 	gst_pad_set_caps (GST_GOO_AUDIO_FILTER (self)->srcpad, src_caps);
 	gst_caps_unref (src_caps);

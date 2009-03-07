@@ -89,6 +89,7 @@ gst_goo_adapter_new (void)
 void
 gst_goo_adapter_clear (GstGooAdapter * adapter)
 {
+GST_DEBUG ("");
   g_return_if_fail (GST_IS_GOO_ADAPTER (adapter));
 
   g_slist_foreach (adapter->buflist, (GFunc) gst_mini_object_unref, NULL);
@@ -106,7 +107,11 @@ gst_goo_adapter_push (GstGooAdapter * adapter, GstBuffer * buf)
   g_return_if_fail (GST_IS_GOO_ADAPTER (adapter));
   g_return_if_fail (GST_IS_BUFFER (buf));
 
+GST_DEBUG ("0x%08x", buf);
+
   adapter->size += GST_BUFFER_SIZE (buf);
+
+  buf = gst_buffer_ref(buf);
 
   /* Note: merging buffers at this point is premature. */
   if (G_UNLIKELY (adapter->buflist == NULL)) {
@@ -147,7 +152,7 @@ gst_goo_adapter_peek_into (GstGooAdapter * adapter, guint8 * data, guint size)
 }
 
 const guint8 *
-		gst_goo_adapter_peek (GstGooAdapter * adapter, guint size, OMX_BUFFERHEADERTYPE *omx_buffer)
+gst_goo_adapter_peek (GstGooAdapter * adapter, guint size, OMX_BUFFERHEADERTYPE *omx_buffer)
 {
   GstBuffer *cur;
 
@@ -166,7 +171,7 @@ const guint8 *
 }
 
 void
-		gst_goo_adapter_flush (GstGooAdapter * adapter, guint flush)
+gst_goo_adapter_flush (GstGooAdapter * adapter, guint flush)
 {
   GstBuffer *cur;
 
@@ -186,6 +191,7 @@ void
           g_slist_delete_link (adapter->buflist, adapter->buflist);
       if (G_UNLIKELY (adapter->buflist == NULL))
         adapter->buflist_end = NULL;
+GST_DEBUG ("0x%08x", cur);
       gst_buffer_unref (cur);
     } else {
       adapter->skip += flush;

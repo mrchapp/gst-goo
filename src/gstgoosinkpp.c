@@ -31,6 +31,7 @@
 
 #include "gstgoosinkpp.h"
 #include "gstgoobuffer.h"
+#include "gstghostbuffer.h"
 
 #define GST2OMX_TIMESTAMP(ts) (OMX_S64) ts / 1000;
 #define OMX2GST_TIMESTAMP(ts) (guint64) ts * 1000;
@@ -170,7 +171,6 @@ gst_goo_sinkpp_sync (GstGooSinkPP *self)
 	g_object_set (self->inport,
 		      "buffercount", priv->num_input_buffers, NULL);
 
-
 	GST_INFO_OBJECT (self, "going to idle");
 	goo_component_set_state_idle (self->component);
 	GST_INFO_OBJECT (self, "going to executing");
@@ -182,6 +182,7 @@ gst_goo_sinkpp_sync (GstGooSinkPP *self)
 static gboolean
 gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 {
+return TRUE; // XXX
 	GstGooSinkPP *self = GST_GOO_SINKPP (bsink);
 	GstGooSinkPPPrivate* priv = GST_GOO_SINKPP_GET_PRIVATE (self);
 
@@ -285,6 +286,7 @@ gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 	{
 		return FALSE;
 	}
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
 
 	gboolean ret = FALSE;
 
@@ -292,13 +294,17 @@ gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 	{
 		GST_INFO ("going to idle");
 		goo_component_set_state_idle (self->component);
+//		goo_component_wait_for_next_state (self->component);
 	}
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
 
 	if (goo_component_get_state (self->component) == OMX_StateIdle)
 	{
 		GST_INFO ("going to loaded");
 		goo_component_set_state_loaded (self->component);
+//		goo_component_wait_for_next_state (self->component);
 	}
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
 
 	if (goo_component_get_state (self->component) == OMX_StateLoaded)
 	{
@@ -306,6 +312,7 @@ gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 		ret &= gst_goo_sinkpp_sync (self);
 		GST_OBJECT_UNLOCK (self);
 	}
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
 
 	return TRUE;
 }
@@ -314,6 +321,15 @@ static GstFlowReturn
 gst_goo_sinkpp_render (GstBaseSink *sink, GstBuffer *buffer)
 {
 	GST_LOG ("");
+
+	/* if needed, call deferred processing from the decoder: */
+	if (GST_IS_GHOST_BUFFER (buffer))
+	{
+		GstGhostBuffer *ghost_buffer = GST_GHOST_BUFFER(buffer);
+		ghost_buffer->chain (ghost_buffer->pad, ghost_buffer->buffer);
+		gst_object_unref (ghost_buffer->pad);
+		gst_buffer_unref (ghost_buffer->buffer);
+	}
 
 	GstGooSinkPP* self = GST_GOO_SINKPP (sink);
 	GstFlowReturn ret = GST_FLOW_OK;
@@ -797,7 +813,7 @@ gst_goo_sinkpp_class_init (GstGooSinkPPClass* klass)
 	/* GST */
 	gst_klass = GST_BASE_SINK_CLASS (klass);
 
-	gst_klass->preroll	= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_render);
+//	gst_klass->preroll	= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_render);
 	gst_klass->render	= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_render);
 	gst_klass->set_caps	= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_setcaps);
 	gst_klass->stop		= GST_DEBUG_FUNCPTR (gst_goo_sinkpp_stop);

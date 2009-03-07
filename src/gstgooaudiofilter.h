@@ -66,6 +66,12 @@ struct _GstGooAudioFilter
 	GstPad* sinkpad;
 	GstPad* srcpad;
 
+	/* This field is used to normalize timestamps to 0 */
+	OMX_S64 omx_normalize_timestamp;
+
+	/* this should be set by derived class when caps are known: */
+	GstCaps* src_caps;
+
 #if 0
 	GstGooSem* dasfsrc_sem;
 #endif
@@ -92,7 +98,6 @@ struct _GstGooAudioFilterClass
 	gboolean (*sink_setcaps_func) (GstPad *pad, GstCaps *caps);
 	gboolean (*src_setcaps_func) (GstPad *pad, GstCaps *caps);
 	gboolean (*set_process_mode_func) (GstGooAudioFilter* self, guint value);
-
 };
 
 GType gst_goo_audio_filter_get_type (void);
