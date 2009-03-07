@@ -274,6 +274,10 @@ gst_dasf_enable (GstDasfSink* self)
 			return;
 
 		self->component = GOO_TI_AUDIO_COMPONENT (component);
+
+		goo_ti_audio_component_set_dasf_mode (self->component, TRUE);
+		GST_DEBUG_OBJECT (self, "set data path");
+		goo_ti_audio_component_set_data_path (self->component, 0);
 	}
 
 	if (self->pp == NULL)
@@ -283,10 +287,6 @@ gst_dasf_enable (GstDasfSink* self)
 		 */
 		priv->clock_required = gst_dasf_clock_required (self);
 
-		/* are there cases where there legitimately won't be a
-		 * postprocessor, not just because it hasn't been created
-		 * yet??
-		 */
 		if (self->pp == NULL)
 			return;
 
@@ -307,10 +307,6 @@ gst_dasf_enable (GstDasfSink* self)
 			GST_DEBUG ("Clock component clock refcount %d",
 					G_OBJECT(self->clock)->ref_count);
 		}
-
-		goo_ti_audio_component_set_dasf_mode (self->component, TRUE);
-		GST_DEBUG_OBJECT (self, "set data path");
-		goo_ti_audio_component_set_data_path (self->component, 0);
 
 		if (priv->clock_source == OMX_CLOCK)
 		{
