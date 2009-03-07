@@ -182,11 +182,22 @@ gst_goo_sinkpp_sync (GstGooSinkPP *self)
 static gboolean
 gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 {
-return TRUE; // XXX
 	GstGooSinkPP *self = GST_GOO_SINKPP (bsink);
 	GstGooSinkPPPrivate* priv = GST_GOO_SINKPP_GET_PRIVATE (self);
 
 	GST_DEBUG_OBJECT (self, "");
+
+#if 1
+	// trying to change the postprocessor state when it is already
+	// executing seems to cause some issues.. this is the work-around.
+	// hopefully we've already configured whatever must be configured
+	// in the postprocessor in the decoder element.
+	if (goo_component_get_state (self->component) == OMX_StateExecuting)
+	{
+		GST_DEBUG_OBJECT (self, "postprocessor is already executing.. employing hack (bypass gst_goo_sinkpp_setcaps())");
+		return TRUE;
+	}
+#endif
 
 	g_return_val_if_fail (gst_caps_get_size (caps) == 1, FALSE);
 
