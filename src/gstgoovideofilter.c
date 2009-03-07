@@ -239,23 +239,26 @@ static gboolean
 gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 {
 	GST_LOG ("");
-
 	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
 	gboolean ret;
-
 	g_assert (self->component != NULL);
 
 	switch (GST_EVENT_TYPE (event))
 	{
 		case GST_EVENT_NEWSEGMENT:
-			GST_INFO ("New segement event");
-			priv->incount = 0;
-			priv->outcount = 0;
-			priv->flag_start = TRUE;
-			ret = gst_pad_push_event (self->srcpad, event);
+			if ((self->srcpad)!= NULL)
+			{
+				GST_INFO ("New segement event");
+				priv->incount = 0;
+				priv->outcount = 0;
+				priv->flag_start = TRUE;
+				ret = gst_pad_push_event (self->srcpad, event);
+				break;
+			}
 			break;
+			
 		case GST_EVENT_EOS:
 			GST_INFO ("EOS event");
 			gst_goo_video_filter_wait_for_done (self);
@@ -343,7 +346,7 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 static GstFlowReturn
 gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 {
-	GST_LOG ("");
+	GST_LOG ("enter chain");
 
 	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
@@ -428,7 +431,6 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 		{
 			GST_INFO ("going to idle");
 			goo_component_set_state_idle (self->component);
-
 		}
 
 		GST_INFO ("going to executing");
@@ -542,10 +544,13 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 		/* goo_component_set_state_paused (self->component); */
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
-		GST_INFO ("going to idle");
-		goo_component_set_state_idle (self->component);
-		GST_INFO ("going to loaded");
-		goo_component_set_state_loaded (self->component);
+		if (!(goo_port_is_tunneled (self->inport)))
+		{
+			GST_INFO ("going to idle");
+			goo_component_set_state_idle (self->component);
+			GST_INFO ("going to loaded");
+			goo_component_set_state_loaded (self->component);
+		}
 		break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
 		break;
@@ -983,7 +988,6 @@ gst_goo_video_filter_setcaps (GstPad* pad, GstCaps* caps)
 {
 	GstGooVideoFilter* self;
 	GstGooVideoFilterClass *klass;
-	GstGooVideoFilterPrivate* priv;
 	GstPad* otherpad;
 	GstPad* otherpeer;
 	GstCaps* othercaps = NULL;
@@ -993,13 +997,15 @@ gst_goo_video_filter_setcaps (GstPad* pad, GstCaps* caps)
 	self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
 	klass = GST_GOO_VIDEO_FILTER_GET_CLASS (self);
 
-	GST_DEBUG_OBJECT (self, "");
+	GST_DEBUG_OBJECT (self, "set caps");
 
 	g_return_val_if_fail (GST_CAPS_IS_SIMPLE (caps), FALSE);
-	g_return_val_if_fail (priv != NULL, FALSE);
 
 	otherpad = (pad == self->srcpad) ? self->sinkpad : self->srcpad;
 	otherpeer = gst_pad_get_peer (otherpad);
+	
+	GstPad *otropad;
+  	GstElement *vecino;
 
 	/* if we get called recursively, we bail out now to avoid an
 	 * infinite loop. */
@@ -1177,13 +1183,10 @@ gst_goo_video_filter_setcaps (GstPad* pad, GstCaps* caps)
 	}
 
 	if (!(ret = gst_goo_video_filter_configure_caps (self, incaps, outcaps)))
-	{
+	{	
 		goto failed_configure;
 	}
-
-	/* we know this will work, we implement the setcaps */
 	gst_pad_set_caps (otherpad, othercaps);
-
 done:
 	if (otherpeer)
 	{
@@ -1225,13 +1228,13 @@ could_not_fixate:
 	}
 peer_no_accept:
 	{
-		LOG_CAPS (otherpad, othercaps);
+		DEBUG_CAPS (otherpad, othercaps);
 		ret = FALSE;
 		goto done;
 	}
 failed_configure:
 	{
-		LOG_CAPS ("FAILED to configure caps %s", othercaps);
+		DEBUG_CAPS ("FAILED to configure caps %s", othercaps);
 		ret = FALSE;
 		goto done;
 	}
