@@ -59,9 +59,13 @@ enum
 #define OMX_CLOCK 1
 #define AUTO_CLOCK 2
 
-#define DEFAULT_CLOCK_SOURCE    OMX_CLOCK
-#define DEFAULT_CLOCK_REQUIRED  OMX_CLOCK
-
+#if 1
+#  define DEFAULT_CLOCK_SOURCE    OMX_CLOCK
+#  define DEFAULT_CLOCK_REQUIRED  OMX_CLOCK
+#else
+#  define DEFAULT_CLOCK_SOURCE    GSTREAMER_CLOCK
+#  define DEFAULT_CLOCK_REQUIRED  GSTREAMER_CLOCK
+#endif
 
 
 #define GST_DASF_SINK_GET_PRIVATE(obj) \
@@ -273,7 +277,7 @@ gst_dasf_enable (GstDasfSink* self)
 		if (component == NULL)
 			return;
 
-		self->component = GOO_TI_AUDIO_COMPONENT (component);
+		self->component = GOO_TI_AUDIO_COMPONENT (g_object_ref (component));
 
 		goo_ti_audio_component_set_dasf_mode (self->component, TRUE);
 		GST_DEBUG_OBJECT (self, "set data path");
@@ -500,56 +504,6 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 {
 	GST_LOG ("");
 
-	GstDasfSink* self = GST_DASF_SINK (element);
-	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (self);
-
-	switch (transition)
-	{
-		case GST_STATE_CHANGE_NULL_TO_READY:
-			GST_LOG ("GST_STATE_CHANGE_NULL_TO_READY.. noop");
-			break;
-		case GST_STATE_CHANGE_READY_TO_PAUSED:
-			GST_LOG ("GST_STATE_CHANGE_READY_TO_PAUSED.. noop");
-			break;
-		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-			GST_LOG ("GST_STATE_CHANGE_PLAYING_TO_PAUSED");
-			if (priv->clock_source == OMX_CLOCK)
-			{
-				g_object_set (G_OBJECT (self), "halted", TRUE, NULL);
-				return GST_STATE_CHANGE_SUCCESS;
-			}
-			break;
-		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-			GST_LOG ("GST_STATE_CHANGE_PAUSED_TO_PLAYING");
-			if (priv->clock_source == OMX_CLOCK)
-			{
-				if(priv->first_time_playing)
-				{
-					priv->first_time_playing = FALSE;
-				}
-				else
-				{
-					g_object_set (G_OBJECT (self), "halted", FALSE, NULL);
-					return GST_STATE_CHANGE_SUCCESS;
-				}
-			}
-			break;
-		case GST_STATE_CHANGE_PAUSED_TO_READY:
-			GST_LOG ("GST_STATE_CHANGE_PAUSED_TO_READY");
-			if (priv->clock_source == OMX_CLOCK)
-			{
-				g_object_set (G_OBJECT (self), "halted", FALSE, NULL);
-				GST_INFO ("Setting clock to idle");
-				goo_component_set_state_idle (self->clock);
-				GST_INFO ("Setting clock to loaded");
-				goo_component_set_state_loaded (self->clock);
-			}
-			break;
-		default:
-			GST_LOG ("transition=%d", transition);
-			break;
-	}
-
 	return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
 
@@ -672,7 +626,10 @@ gst_dasf_sink_dispose (GObject* object)
 		g_object_unref (self->factory);
 	}
 
-	self->component = NULL;
+	if (self->component)
+	{
+		g_object_unref (self->component);
+	}
 }
 
 static void
@@ -793,6 +750,7 @@ gst_dasf_sink_init (GstDasfSink* self, GstDasfSinkClass* klass)
 	priv->incount = 0;
 	priv->volume = 100;
 	priv->mute = FALSE;
+	self->clock = NULL;
 	priv->clock_source = DEFAULT_CLOCK_SOURCE;
 	priv->clock_required = DEFAULT_CLOCK_REQUIRED;
 	priv->first_time_playing = TRUE;
