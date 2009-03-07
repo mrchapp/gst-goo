@@ -186,6 +186,7 @@ gst_goo_videoenc_class_init (GstGooVideoEncClass* klass)
 static void
 gst_goo_videoenc_init (GstGooVideoEnc* self, GstGooVideoEncClass* klass)
 {
+	
 	return;
 }
 
@@ -304,7 +305,7 @@ gst_goo_videoenc_transform_caps (GstGooVideoFilter* filter,
 		G_TYPE_INT, height, NULL);
 
 	gchar* strcaps = gst_caps_to_string (result);
-	GST_DEBUG_OBJECT (self, "transformed caps %s", strcaps);			\
+	GST_DEBUG_OBJECT (self, "transformed caps %s", strcaps);	
 	g_free (strcaps);
 
 	return result;
@@ -358,7 +359,6 @@ gst_goo_videoenc_configure_caps (GstGooVideoFilter* filter,
 	guint height;
 	guint framerate;
 
-
 	GST_DEBUG_OBJECT (self, "Configuring caps");
 
 	g_return_val_if_fail (GST_CAPS_IS_SIMPLE (in), FALSE);
@@ -369,11 +369,16 @@ gst_goo_videoenc_configure_caps (GstGooVideoFilter* filter,
 
 	if (goo_component_get_state (GST_GOO_VIDEO_FILTER(self)->component) == OMX_StateLoaded)
 	{
+		g_print("\nvideoencoder en load\n");
 		GST_OBJECT_LOCK (self);
 		ret = omx_sync (self, color_format, width, height, framerate);
 		GST_OBJECT_UNLOCK (self);
 	}
-
+	else if (goo_port_is_tunneled (GST_GOO_VIDEO_FILTER(self)->inport))
+	{
+		g_print("\nVideo encoder en tunnel\n");
+		ret=TRUE;
+	}
 	return ret;
 
 }

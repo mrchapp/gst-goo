@@ -25,9 +25,11 @@
 #endif
 
 #include <gst/interfaces/colorbalance.h>
+#include <gst/base/gstbasetransform.h>
 #include <gst/video/video.h>
 
 #include <goo-ti-camera.h>
+#include <goo-ti-video-encoder.h>
 #include <goo-ti-post-processor.h>
 #include <goo-utils.h>
 
@@ -109,8 +111,8 @@ ResolutionInfo maxres;
 #define COLOR_DEFAULT              OMX_COLOR_FormatYCbYCr
 #define BALANCE_DEFAULT            OMX_WhiteBalControlAuto
 #define ZOOM_DEFAULT               GOO_TI_CAMERA_ZOOM_1X
-#define CONTRAST_DEFAULT	   0
-#define BRIGHTNESS_DEFAULT	   50
+#define CONTRAST_DEFAULT	   -70
+#define BRIGHTNESS_DEFAULT	   10
 #define DISPLAY_ROTATION_DEFAULT   GOO_TI_POST_PROCESSOR_ROTATION_NONE
 #define VSTAB_DEFAULT              FALSE
 #define CONTRAST_LABEL		   "Contrast"
@@ -297,15 +299,19 @@ gst_goo_camera_stop (GstBaseSrc* self)
 
 	GST_DEBUG_OBJECT (self, "");
 
+	sleep(1);
 	if (priv->capture == TRUE)
 	{
 		GST_INFO_OBJECT (self, "Capture off");
 		g_object_set (me->camera, "capture", FALSE, NULL);
 	}
-
+	sleep(1);
+	
+	g_print("\nSTOP camera, going to idle\n"); 
 	GST_INFO_OBJECT (self, "going to idle");
 	goo_component_set_state_idle (me->camera);
 
+	g_print("\nSTOP camera, going to load\n"); 
 	GST_INFO_OBJECT (self, "camera: going to loaded");
 	goo_component_set_state_loaded (me->camera);
 
@@ -318,9 +324,8 @@ gst_goo_camera_fixate (GstBaseSrc* self, GstCaps* caps)
 {
 	GstStructure *structure;
 	gint i;
-
+	g_print("\nfixating caps enter \n");
 	GST_DEBUG_OBJECT (self, "fixating caps %" GST_PTR_FORMAT, caps);
-
 	ResolutionInfo defres = goo_get_resolution ("cif");
 
 	for (i = 0; i < gst_caps_get_size (caps); ++i)
@@ -353,6 +358,8 @@ gst_goo_camera_fixate (GstBaseSrc* self, GstCaps* caps)
 					   GST_TYPE_FOURCC, fourcc, NULL);
 		}
 	}
+	
+	g_print("\nfixating caps exit \n");
 }
 
 static OMX_COLOR_FORMATTYPE
@@ -402,7 +409,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 {
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (self);
 	gboolean one_shot = FALSE;
-
+	GooComponent *component=NULL;
 	GST_DEBUG_OBJECT (self, "");
 
 	/* sensor configuration */
@@ -428,50 +435,25 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 
 		param->sFrameSize.nWidth = width;
 		param->sFrameSize.nHeight = height;
+		g_print ("\nSensor GST-GOO-CAMERA \n dwidth = %d | dheight = %d\n", param->sFrameSize.nWidth, param->sFrameSize.nHeight);
+		
 	}
-
-	/* capture port configuration */
-	{
-		OMX_PARAM_PORTDEFINITIONTYPE* param;
-		param = GOO_PORT_GET_DEFINITION (self->captureport);
-
-		if (GOO_TI_CAMERA_GET_PARAM (self->camera)->bOneShot == TRUE)
-		{
-			param->format.image.eColorFormat = color;
-		}
-		else
-		{
-			param->format.video.eColorFormat = color;
-		}
-	}
-
-	/* thumbnail port configuration */
-	{
-		GooPort* port = goo_component_get_port (self->camera,
-							"output2");
-		g_assert (port != NULL);
-
-		OMX_PARAM_PORTDEFINITIONTYPE *param = NULL;
-		param = GOO_PORT_GET_DEFINITION (port);
-
-		gint tn_width = MIN (maxres.width, width);
-		gint tn_height = MIN (maxres.height, height);
-
-		param->format.video.nFrameWidth  = tn_width;
-		param->format.video.nFrameHeight = tn_height;
-		param->format.video.eColorFormat = color;
-
-		g_object_unref (port);
-	}
-
-	/* if (priv->preview == TRUE) */
+	
+	if (priv->preview == TRUE)
 	{
 		/* display configuration */
 		{
 			if (one_shot == FALSE)
-			{
-				priv->display_width = width;
+			{	
+				/*ResolutionInfo rinfo = goo_get_resolution ("pal");*/
+				/*Preview max vga*/
+				/*priv->display_width  = ( width > rinfo.width) ? rinfo.width : width;
+				priv->display_height = ( width > rinfo.height) ? rinfo.height : height;
+				*/
+				priv->display_width  = width;
 				priv->display_height = height;
+				
+				g_print ("\nPreview \N gst-goo dwidth = %d | dheight = %d\n", priv->display_width,	 priv->display_height);
 			}
 			else if (priv->display_width == 0 &&
 				 priv->display_height == 0)
@@ -510,8 +492,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			param = GOO_PORT_GET_DEFINITION (port);
 
 			param->format.video.nFrameWidth = priv->display_width;
-			param->format.video.nFrameHeight =
-				priv->display_height;
+			param->format.video.nFrameHeight =priv->display_height;
 			param->format.video.eColorFormat = color;
 
 			g_object_unref (port);
@@ -536,21 +517,15 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			OMX_PARAM_PORTDEFINITIONTYPE* param;
 			param = GOO_PORT_GET_DEFINITION (port);
 
-			param->format.video.nFrameWidth = priv->display_width;
-			param->format.video.nFrameHeight =
-				priv->display_height;
+			param->format.video.nFrameWidth =   priv->display_width;
+			param->format.video.nFrameHeight =	priv->display_height;
 			param->format.video.eColorFormat = color;
 
 			g_object_unref (port);
 		}
 
-		GST_INFO_OBJECT (self, "setting up tunnel");
-		goo_component_set_tunnel_by_name (self->camera, "output0",
-						  self->postproc, "input0",
-						  OMX_BufferSupplyInput);
-
 	}
-#if 0	/* we can disable viewfinding port by the moment */
+	
 	else
 	{
 		GooPort* port =
@@ -562,20 +537,179 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 
 		g_object_unref (port);
 	}
-#endif
 
-	GST_INFO_OBJECT (self, "going to idle");
-	goo_component_set_state_idle (self->camera);
 
-	if (priv->vstab == TRUE)
+/* thumbnail port configuration */
+#if 0	/* we can disable thumbnail port by the moment */
+	{
+		GooPort* port = goo_component_get_port (self->camera,
+							"output2");
+		g_assert (port != NULL);
+
+		OMX_PARAM_PORTDEFINITIONTYPE *param = NULL;
+		param = GOO_PORT_GET_DEFINITION (port);
+
+		gint tn_width = MIN (maxres.width, width);
+		gint tn_height = MIN (maxres.height, height);
+
+		param->format.video.nFrameWidth  = tn_width;
+		param->format.video.nFrameHeight = tn_height;
+		param->format.video.eColorFormat = color;
+		
+		g_object_unref (port);
+	}
+#else
+	{
+		
+		GooPort* port =
+			goo_component_get_port (self->camera, "output2");
+		g_assert (port != NULL);
+
+		GST_INFO_OBJECT (self, "disabling thumbnail port");
+		goo_component_disable_port (self->camera, port);
+
+		g_object_unref (port);
+		
+	}
+#endif 
+		/* capture port configuration */
+	{
+		OMX_PARAM_PORTDEFINITIONTYPE* param;
+		param = GOO_PORT_GET_DEFINITION (self->captureport);
+
+		if (GOO_TI_CAMERA_GET_PARAM (self->camera)->bOneShot == TRUE)
+		{
+			param->format.image.eColorFormat = color;
+		}
+		else
+		{
+			param->format.video.eColorFormat = color;
+		}
+	}
+		/* video encoder port configuration */
+	if (GOO_TI_CAMERA_GET_PARAM (self->camera)->bOneShot != TRUE)
+	{
+		GstPad *peer, *src_peer;
+		GstElement *next_element=NULL;
+		
+		if (!(GST_BASE_SRC_PAD (self)))
+		{
+			GST_INFO ("it is not a src pad");
+			goto no_enc;	
+		}
+		
+		else
+		{
+			peer = gst_pad_get_peer (GST_BASE_SRC_PAD (self));
+		
+			if ( peer == NULL)
+			{
+				GST_INFO ("No next pad");
+				goto no_enc;	
+			}
+								
+			else 
+			{
+				next_element = GST_ELEMENT (gst_pad_get_parent (peer));
+				
+				if  G_UNLIKELY (next_element == NULL)
+				{	
+					g_print("\nNO TUNNEl \n");
+					goto no_enc;
+				}
+				
+				else
+				{				
+					if (!(g_object_get_data (G_OBJECT (next_element), "goo")) && GST_IS_BASE_TRANSFORM (next_element)) 
+					{
+						GST_DEBUG_OBJECT(self, "next element name: %s", gst_element_get_name (next_element));
+						src_peer = gst_element_get_pad (next_element,"src");
+						if ( src_peer != NULL )
+						{
+							gst_object_unref (peer);
+							peer = gst_pad_get_peer (src_peer);
+							gst_object_unref (next_element);
+							next_element = GST_ELEMENT(gst_pad_get_parent (peer)) ;
+							GST_DEBUG_OBJECT (self, "one after element name: %s", gst_element_get_name(next_element));
+							gst_object_unref (src_peer);
+							component = GOO_COMPONENT (g_object_get_data (G_OBJECT (next_element), "goo"));
+						}
+					}
+					else
+					{				
+					component = GOO_COMPONENT (g_object_get_data (G_OBJECT (next_element), "goo"));
+					}
+					
+					if (GOO_IS_TI_VIDEO_ENCODER (component))
+					{
+							GST_INFO_OBJECT (self, "There is a video encoder" );
+						/* input port */
+						{
+							GooPort *peer_port = goo_component_get_port (component, "input0");
+							g_assert (peer_port != NULL);
+							OMX_PARAM_PORTDEFINITIONTYPE* param =GOO_PORT_GET_DEFINITION (peer_port);					
+									
+							param->format.video.xFramerate = (fps_n / fps_d)<<16;
+							param->format.video.nFrameWidth =   width;
+							param->format.video.nFrameHeight =	height;
+							param->format.video.eColorFormat = color;
+							g_print ("\nVIDEO ENCODER  \ndwidth = %d | dheight = %d\n ", param->format.video.nFrameWidth,	 param->format.video.nFrameHeight);
+							g_object_unref (peer_port);
+						}		
+						
+						/* output port */
+						{	
+							GooPort* port = goo_component_get_port (component, "output0");
+							g_assert (port != NULL);
+							OMX_PARAM_PORTDEFINITIONTYPE* param_out =GOO_PORT_GET_DEFINITION (port);
+				
+							param_out->format.video.nFrameWidth =   width;
+							param_out->format.video.nFrameHeight =	height;
+						
+							GST_INFO_OBJECT (self, "setting up tunnel with video encoder ");
+							goo_component_set_tunnel_by_name (self->camera, "output1",
+					  				component, "input0", 
+					  				OMX_BufferSupplyInput);
+
+							g_print("\nsetting up tunnel with video encoder \n");					  				
+					  		g_object_unref (port);
+					  	}
+					}
+					gst_object_unref (next_element);
+				}	
+				gst_object_unref (peer);
+			}
+		} /* end of capture port configuration */
+	}
+	
+no_enc:
+
+	GST_INFO_OBJECT (self, "setting up tunnel with post processor");
+	goo_component_set_tunnel_by_name (self->camera, "output0",
+						  self->postproc, "input0",
+					  OMX_BufferSupplyInput);
+	GooPort* port_pp =	goo_component_get_port (self->postproc,
+						"input0");
+	g_assert (port_pp != NULL);
+	goo_component_set_supplier_port (self->postproc, port_pp, OMX_BufferSupplyInput);
+	gst_object_unref (port_pp);
+	
+		if (priv->vstab == TRUE)
 	{
 		GST_INFO_OBJECT (self, "enabling vstab");
 		g_object_set (self->camera, "vstab", TRUE, NULL);
 	}
 
+	GST_INFO_OBJECT (self, "going to idle");
+	goo_component_set_state_idle (self->camera);
+
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
 
+	if (component != NULL)
+	{
+		g_object_unref (component);
+	}
 	return;
 }
 
@@ -587,7 +721,7 @@ gst_goo_camera_setcaps (GstBaseSrc* self, GstCaps* caps)
 	GstStructure* structure;
 
 	GST_DEBUG_OBJECT (me, "");
-
+	g_print("\nsetcaps enter \n");
 	structure = gst_caps_get_structure (caps, 0);
 
 	gint width = 0, height = 0;
@@ -615,11 +749,14 @@ gst_goo_camera_setcaps (GstBaseSrc* self, GstCaps* caps)
 		fps_d = 1;
 	}
 
-	gst_goo_camera_sync (me, width, height, color, fps_n, fps_d);
-
 	priv->fps_n = fps_n;
 	priv->fps_d = fps_d;
-
+	
+	g_print("\ncamera sync enter \n");
+	gst_goo_camera_sync (me, width, height, color, fps_n, fps_d);
+	
+	g_print("\nsetcaps exit \n");
+	
 	return TRUE;
 }
 
@@ -629,7 +766,8 @@ gst_goo_camera_query (GstBaseSrc* self, GstQuery* query)
 	GstGooCamera* me = GST_GOO_CAMERA (self);
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (me);
 	gboolean res = FALSE;
-
+	
+	g_print("\nquery enter \n");
 	switch (GST_QUERY_TYPE (query))
 	{
 	case GST_QUERY_LATENCY:
@@ -670,7 +808,7 @@ gst_goo_camera_query (GstBaseSrc* self, GstQuery* query)
 	}
 
 done:
-
+	g_print("\nquery exit \n");
 	return res;
 }
 
@@ -681,9 +819,8 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (me);
 	GstBuffer* gst_buffer = NULL;
 	OMX_BUFFERHEADERTYPE* omx_buffer = NULL;
-
-	GST_DEBUG_OBJECT (me, "");
-
+	g_print("\ncamera_create enter \n");
+	GST_DEBUG_OBJECT (me, " ");
 	if (me->camera->cur_state != OMX_StateExecuting)
 	{
 		return GST_FLOW_UNEXPECTED;
@@ -698,9 +835,14 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 
 	if (goo_port_is_tunneled (me->captureport))
 	{
-		GST_INFO_OBJECT (me, "port is tunneled");
+		g_print("\ncaptureport tuneleado\n");
+		GST_INFO_OBJECT (me, "port is tunneled, send ghost_buffer");
 		gst_buffer = gst_ghost_buffer_new ();
+		GST_DEBUG_OBJECT (me, "setting caps on ghost buffer");
+		gst_buffer_set_caps (gst_buffer,
+				     GST_PAD_CAPS (GST_BASE_SRC_PAD (self)));
 		goto beach;
+		
 	}
 
 	GST_DEBUG_OBJECT (me, "goo stuff");
@@ -718,7 +860,7 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 		{
 			if (GST_IS_GOO_BUFFER (gst_buffer))
 			{
-				GST_DEBUG_OBJECT (me, "It is an OMX buffer!");
+				GST_DEBUG_OBJECT (me, "It is an OMX buffer!It is an OMX buffer!");
 				OMX_BUFFERHEADERTYPE* buf;
 
 				buf = GST_GOO_BUFFER (gst_buffer)->omx_buffer;
@@ -829,7 +971,9 @@ beach:
 	GST_DEBUG_OBJECT (me, "beach");
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount++;
 	GST_BUFFER_OFFSET_END (gst_buffer) = priv->outcount;
-
+	
+	g_print("\ncamera_create exit\n");
+	
 	*buffer = gst_buffer;
 	return GST_FLOW_OK;
 
@@ -1090,7 +1234,8 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 
 	{
 		/* global constant */
-		maxres = goo_get_resolution ("pal");
+		maxres = goo_get_resolution ("cif");
+		
 	}
 
 	g_klass = G_OBJECT_CLASS (klass);
@@ -1189,7 +1334,6 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 	/* GST stuff */
 	p_klass = GST_PUSH_SRC_CLASS (klass);
 	p_klass->create = GST_DEBUG_FUNCPTR (gst_goo_camera_create);
-
 	b_klass = GST_BASE_SRC_CLASS (klass);
 	b_klass->start    = GST_DEBUG_FUNCPTR (gst_goo_camera_start);
 	b_klass->stop     = GST_DEBUG_FUNCPTR (gst_goo_camera_stop);
