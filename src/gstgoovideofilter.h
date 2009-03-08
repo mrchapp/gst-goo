@@ -49,7 +49,6 @@ G_BEGIN_DECLS
 
 typedef struct _GstGooVideoFilter GstGooVideoFilter;
 typedef struct _GstGooVideoFilterClass GstGooVideoFilterClass;
-typedef struct _GstGooVideoFilterPrivate GstGooVideoFilterPrivate;
 
 struct _GstGooVideoFilter
 {

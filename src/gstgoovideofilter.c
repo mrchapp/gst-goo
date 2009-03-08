@@ -90,6 +90,7 @@ gst_goo_video_filter_process_mode_get_type ()
 #define GST_GOO_VIDEO_FILTER_GET_PRIVATE(obj)					\
 	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_GOO_VIDEO_FILTER, GstGooVideoFilterPrivate))
 
+typedef struct _GstGooVideoFilterPrivate GstGooVideoFilterPrivate;
 struct _GstGooVideoFilterPrivate
 {
 	guint num_input_buffers;
@@ -101,7 +102,6 @@ struct _GstGooVideoFilterPrivate
 
 	GstSegment segment;
 	gboolean flag_start;
-
 };
 
 #define NUM_INPUT_BUFFERS_DEFAULT 4
@@ -287,7 +287,6 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 static gboolean
 gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 {
-
 	GooComponent *peer_component;
 
 	GST_INFO ("");
@@ -319,21 +318,18 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 		have the caps configured by then.
 		@Todo: Change this to find which port is actually tunneled **/
 
-		GooPort *peer_port = goo_component_get_port (peer_component, "input0");
-	{
+	GooPort *peer_port = goo_component_get_port (peer_component, "input0");
 
-		GOO_PORT_GET_DEFINITION (peer_port)->format.video.nFrameWidth =
-			GOO_PORT_GET_DEFINITION (self->outport)->format.video.nFrameWidth;
+	GOO_PORT_GET_DEFINITION (peer_port)->format.video.nFrameWidth =
+		GOO_PORT_GET_DEFINITION (self->outport)->format.video.nFrameWidth;
 
-		GOO_PORT_GET_DEFINITION (peer_port)->format.video.nFrameHeight =
-			GOO_PORT_GET_DEFINITION (self->outport)->format.video.nFrameHeight;
+	GOO_PORT_GET_DEFINITION (peer_port)->format.video.nFrameHeight =
+		GOO_PORT_GET_DEFINITION (self->outport)->format.video.nFrameHeight;
 
-		GOO_PORT_GET_DEFINITION (peer_port)->format.video.eColorFormat =
-			GOO_PORT_GET_DEFINITION (self->outport)->format.video.eColorFormat;
-GST_INFO ("eColorFormat: %d", GOO_PORT_GET_DEFINITION (self->outport)->format.video.eColorFormat);
-		GOO_PORT_GET_DEFINITION (peer_port)->nBufferCountActual =
-			GOO_PORT_GET_DEFINITION (self->outport)->nBufferCountActual;
-	}
+	GOO_PORT_GET_DEFINITION (peer_port)->format.video.eColorFormat =
+		GOO_PORT_GET_DEFINITION (self->outport)->format.video.eColorFormat;
+	GOO_PORT_GET_DEFINITION (peer_port)->nBufferCountActual =
+		GOO_PORT_GET_DEFINITION (self->outport)->nBufferCountActual;
 
 	/** @Todo: Change this to find which port is actually tunneled **/
 	goo_component_set_tunnel_by_name (self->component, "output0",
@@ -346,8 +342,6 @@ GST_INFO ("eColorFormat: %d", GOO_PORT_GET_DEFINITION (self->outport)->format.vi
 	g_object_unref (peer_port);
 
 	GST_INFO ("Tunneled component successfully");
-
-	goo_component_set_state_idle (self->component);
 
 	g_object_unref (peer_component);
 
@@ -404,6 +398,21 @@ GST_INFO_OBJECT (self, "got DISCONT or first buffer");
 
 	waiting_for_normalize_timestamp = FALSE;
 
+	if (priv->incount == 0)
+	{
+		if (goo_component_get_state (self->component) == OMX_StateLoaded)
+		{
+			GST_INFO ("going to idle");
+			goo_component_set_state_idle (self->component);
+		}
+
+		if (goo_component_get_state (self->component) == OMX_StateIdle)
+		{
+			GST_INFO ("going to executing");
+			goo_component_set_state_executing (self->component);
+		}
+	}
+
 	gst_goo_adapter_push (adapter, buffer);
 
 	int omxbufsiz;
@@ -430,7 +439,6 @@ GST_INFO_OBJECT (self, "got DISCONT or first buffer");
 		{
 			GST_DEBUG_OBJECT (self, "OMX starttime flag %d",omx_buffer->nFlags );
 			omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
-			priv->flag_start = FALSE;  // TODO maybe remove this?
 		}
 
 		GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
@@ -491,10 +499,15 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 		goto fail;
 	}
 
-	// XXX maybe all access to 'adapter' needs to be moved to chain2()?  could be weird race
+	// TODO maybe all access to 'adapter' needs to be moved to chain2()?  could be weird race
 	// conditions between chain() and chain2() otherwise..
 
-	if (priv->incount == 0 &&
+	/* note: use priv->flag_start here, rather than priv->incount==0, since
+	 * the _chain() function can be called multiple times before _chain2()
+	 * (where incount is incremented).. so here, priv->incount==0 is not
+	 * a reliable way to determine if this is the first buffer
+	 */
+	if (priv->flag_start &&
 	    goo_component_get_state (self->component) == OMX_StateLoaded)
 	{
 		GST_DEBUG_OBJECT (self, "potential header processing");
@@ -510,17 +523,14 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 				"buffercount",
 				priv->num_output_buffers, NULL);
 
-		/** If the tunnel was created then the component has been set to IDLE **/
-		if (!gst_goo_video_filter_setup_tunnel (self))
-		{
-			GST_INFO ("going to idle");
-			goo_component_set_state_idle (self->component);
+		gst_goo_video_filter_setup_tunnel (self);
 
-		}
+		/* note: don't go to idle here.. we need to do that in chain2() because
+		 * it must happen after caps negotiation, as the state changes need to
+		 * be coordinated between the decoder and sink elements
+		 */
 
-		GST_INFO ("going to executing");
-		goo_component_set_state_executing (self->component);
-
+		priv->flag_start = FALSE;
 	}
 
 	/** Function to perform post buffering processing **/
