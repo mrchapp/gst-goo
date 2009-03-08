@@ -136,7 +136,6 @@ static gboolean
 gst_goo_sinkpp_sync (GstGooSinkPP *self)
 {
 	GstGooSinkPPPrivate* priv = GST_GOO_SINKPP_GET_PRIVATE (self);
-	GObject* cobj = G_OBJECT (self->component);
 
 	OMX_PARAM_PORTDEFINITIONTYPE* param;
 	param = GOO_PORT_GET_DEFINITION (self->inport);
@@ -171,10 +170,15 @@ gst_goo_sinkpp_sync (GstGooSinkPP *self)
 	g_object_set (self->inport,
 		      "buffercount", priv->num_input_buffers, NULL);
 
+	/* If we are in tunneled mode, we need to change the state of all the
+	 * components in the tunnel, starting from the head:
+	 */
+	GooComponent *tunnel_head = goo_component_get_tunnel_head (self->component);
+
 	GST_INFO_OBJECT (self, "going to idle");
-	goo_component_set_state_idle (self->component);
+	goo_component_set_state_idle (tunnel_head);
 	GST_INFO_OBJECT (self, "going to executing");
-	goo_component_set_state_executing (self->component);
+	goo_component_set_state_executing (tunnel_head);
 
 	return TRUE;
 }
@@ -186,18 +190,6 @@ gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 	GstGooSinkPPPrivate* priv = GST_GOO_SINKPP_GET_PRIVATE (self);
 
 	GST_DEBUG_OBJECT (self, "");
-
-#if 1
-	// trying to change the postprocessor state when it is already
-	// executing seems to cause some issues.. this is the work-around.
-	// hopefully we've already configured whatever must be configured
-	// in the postprocessor in the decoder element.
-	if (goo_component_get_state (self->component) == OMX_StateExecuting)
-	{
-		GST_DEBUG_OBJECT (self, "postprocessor is already executing.. employing hack (bypass gst_goo_sinkpp_setcaps())");
-		return TRUE;
-	}
-#endif
 
 	g_return_val_if_fail (gst_caps_get_size (caps) == 1, FALSE);
 
@@ -297,33 +289,38 @@ gst_goo_sinkpp_setcaps (GstBaseSink *bsink, GstCaps *caps)
 	{
 		return FALSE;
 	}
-GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
 
 	gboolean ret = FALSE;
 
-	if (goo_component_get_state (self->component) == OMX_StateExecuting)
+	/* If we are in tunneled mode, we need to change the state of all the
+	 * components in the tunnel, starting from the head:
+	 */
+	GooComponent *tunnel_head = goo_component_get_tunnel_head (self->component);
+
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(tunnel_head), goo_component_get_state (tunnel_head));
+	if (goo_component_get_state (tunnel_head) == OMX_StateExecuting)
 	{
 		GST_INFO ("going to idle");
-		goo_component_set_state_idle (self->component);
-//		goo_component_wait_for_next_state (self->component);
+		goo_component_set_state_idle (tunnel_head);
 	}
-GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
 
-	if (goo_component_get_state (self->component) == OMX_StateIdle)
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(tunnel_head), goo_component_get_state (tunnel_head));
+	if (goo_component_get_state (tunnel_head) == OMX_StateIdle)
 	{
 		GST_INFO ("going to loaded");
-		goo_component_set_state_loaded (self->component);
-//		goo_component_wait_for_next_state (self->component);
+		goo_component_set_state_loaded (tunnel_head);
 	}
-GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
 
-	if (goo_component_get_state (self->component) == OMX_StateLoaded)
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(tunnel_head), goo_component_get_state (tunnel_head));
+	if (goo_component_get_state (tunnel_head) == OMX_StateLoaded)
 	{
 		GST_OBJECT_LOCK (self);
 		ret &= gst_goo_sinkpp_sync (self);
 		GST_OBJECT_UNLOCK (self);
 	}
-GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(self->component), goo_component_get_state (self->component));
+GST_INFO ("state[%s]: %d", GOO_OBJECT_NAME(tunnel_head), goo_component_get_state (tunnel_head));
+
+	g_object_unref (tunnel_head);
 
 	return TRUE;
 }
