@@ -44,7 +44,6 @@ G_BEGIN_DECLS
 
 typedef struct _GstGooAudioFilter GstGooAudioFilter;
 typedef struct _GstGooAudioFilterClass GstGooAudioFilterClass;
-typedef struct _GstGooAudioFilterPrivate GstGooAudioFilterPrivate;
 
 struct _GstGooAudioFilter
 {

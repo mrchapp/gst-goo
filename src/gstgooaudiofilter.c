@@ -98,6 +98,7 @@ gst_goo_audio_filter_process_mode_get_type ()
 #define GST_GOO_AUDIO_FILTER_GET_PRIVATE(obj)					\
 	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_GOO_AUDIO_FILTER, GstGooAudioFilterPrivate))
 
+typedef struct _GstGooAudioFilterPrivate GstGooAudioFilterPrivate;
 struct _GstGooAudioFilterPrivate
 {
 	guint num_input_buffers;
@@ -107,6 +108,7 @@ struct _GstGooAudioFilterPrivate
 	guint outcount;
 
 	guint process_mode;
+	gboolean flag_start;
 };
 
 #define NUM_INPUT_BUFFERS_DEFAULT 1
@@ -340,6 +342,7 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 	 */
 	if (global_omx_normalize_timestamp_changed)
 	{
+//GST_INFO_OBJECT (self, "global_omx_normalize_timestamp_changed=%d", global_omx_normalize_timestamp_changed);
 		return GST_FLOW_OK;
 	}
 
@@ -463,7 +466,12 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 	// XXX maybe all access to 'adapter' needs to be moved to chain2()?  could be weird race
 	// conditions between chain() and chain2() otherwise..
 
-	if (priv->incount == 0 &&
+	/* note: use priv->flag_start here, rather than priv->incount==0, since
+	 * the _chain() function can be called multiple times before _chain2()
+	 * (where incount is incremented).. so here, priv->incount==0 is not
+	 * a reliable way to determine if this is the first buffer
+	 */
+	if (priv->flag_start &&
 	    goo_component_get_state (self->component) == OMX_StateLoaded)
 	{
 		GST_DEBUG_OBJECT (self, "potential header processing");
@@ -490,6 +498,7 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 		GST_INFO ("going to executing");
 		goo_component_set_state_executing (self->component);
 
+		priv->flag_start = FALSE;
 	}
 
 	/** Function to perform post buffering processing **/
@@ -824,6 +833,7 @@ gst_goo_audio_filter_init (GstGooAudioFilter* self, GstGooAudioFilterClass* klas
 	priv->num_output_buffers = NUM_OUTPUT_BUFFERS_DEFAULT;
 	priv->incount = 0;
 	priv->outcount = 0;
+	priv->flag_start = TRUE;
 	priv->process_mode = DEFAULT_PROCESS_MODE;
 	self->nbamr_mime = FALSE;
 	self->wbamr_mime = FALSE;
