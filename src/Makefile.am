@@ -16,6 +16,7 @@ libgstgoo_la_SOURCES = \
 	gstgoodecg722.c \
 	gstgoodecg711.c \
 	gstgoodecaac.c \
+	gstgoodecarmaac.c \
 	gstgooencpcm.c \
 	gstgooencnbamr.c \
 	gstgooencgsmhr.c \
@@ -78,6 +79,7 @@ noinst_HEADERS = \
 	gstgoodecg722.h \
 	gstgoodecg711.h \
 	gstgoodecaac.h \
+	gstgoodecarmaac.h \
 	gstgooencpcm.h \
 	gstgooencnbamr.h \
 	gstgooencgsmhr.h \
