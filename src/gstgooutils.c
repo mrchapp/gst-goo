@@ -77,9 +77,7 @@ static void hook_element (GstElement *elem, PipelineChangeListenerContext *ctx)
 	{
 		GST_INFO ("");
 
-GST_DEBUG_OBJECT (elem, "going to g_signal_connect");
 		g_signal_connect (elem, "pad-added", (GCallback)pad_added, ctx);
-GST_DEBUG_OBJECT (elem, "done g_signal_connect");
 
 		/* Since it is likely that some pads are already hooked, let's iterate them
 		 * (since there will be no pad-added signal for them) and simulate the
@@ -130,9 +128,7 @@ static void pad_linked (GstElement *pad, GstPad *peer, PipelineChangeListenerCon
 	{
 		if(obj)
 		{
-GST_DEBUG_OBJECT (obj, "going to unref");
 			gst_object_unref (obj);
-GST_DEBUG_OBJECT (obj, "done unref");
 		}
 
 		obj = gst_pad_get_parent (peer);
@@ -155,9 +151,7 @@ GST_DEBUG_OBJECT (obj, "done unref");
 
 	if(obj)
 	{
-GST_DEBUG_OBJECT (obj, "going to unref");
 		gst_object_unref (obj);
-GST_DEBUG_OBJECT (obj, "done unref");
 	}
 }
 
@@ -174,15 +168,11 @@ static void pad_added (GstElement *elem, GstPad *pad, PipelineChangeListenerCont
 	{
 		pad_linked (pad, peer, ctx);
 
-GST_DEBUG_OBJECT (peer, "going to unref");
 		gst_object_unref (peer);
-GST_DEBUG_OBJECT (peer, "done unref");
 	}
 	else
 	{
-GST_DEBUG_OBJECT (pad, "going to g_signal_connect");
 		g_signal_connect (pad, "linked", pad_linked, ctx);
-GST_DEBUG_OBJECT (pad, "done g_signal_connect");
 	}
 }
 
@@ -275,7 +265,7 @@ static GooComponent * find_goo_component (GstElement *elem, SearchContext *ctx);
 
 
 /**
- * helper for gst_goo_utils_find_goo_component() to check if the current element
+ * helper for gst_goo_util_find_goo_component() to check if the current element
  * is the one we are searching for
  */
 static GooComponent *
@@ -297,7 +287,7 @@ check_for_goo_component (GstElement *elem, SearchContext *ctx)
 }
 
 /**
- * helper for gst_goo_utils_find_goo_component() to iterate and search
+ * helper for gst_goo_util_find_goo_component() to iterate and search
  * the members of a bin
  */
 static GooComponent *
@@ -382,17 +372,13 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 		{
 			if(obj)
 			{
-GST_DEBUG_OBJECT (obj, "going to unref");
 				gst_object_unref (obj);
-GST_DEBUG_OBJECT (obj, "done unref");
 			}
 
 			obj = gst_pad_get_parent (peer);
 			if( GST_IS_PAD(obj) )
 			{
-GST_DEBUG_OBJECT (peer, "going to unref");
 				gst_object_unref (peer);
-GST_DEBUG_OBJECT (peer, "done unref");
 				peer = GST_PAD (obj);
 			}
 			else
@@ -405,9 +391,7 @@ GST_DEBUG_OBJECT (peer, "done unref");
 		if (G_UNLIKELY (adjacent_elem == NULL))
 		{
 			GST_INFO ("Cannot find a adjacent element");
-GST_DEBUG_OBJECT (peer, "going to unref");
 			gst_object_unref (peer);
-GST_DEBUG_OBJECT (peer, "done unref");
 			continue;
 		}
 
@@ -435,12 +419,7 @@ GST_DEBUG_OBJECT (peer, "done unref");
 		}
 
 		/* cleanup: */
-GST_DEBUG_OBJECT (adjacent_elem, "going to unref");
 		gst_object_unref (adjacent_elem);
-GST_DEBUG_OBJECT (adjacent_elem, "done unref");
-//GST_DEBUG_OBJECT (peer, "going to unref");
-//		gst_object_unref (peer);
-//GST_DEBUG_OBJECT (peer, "done unref");
 
 		if( component != NULL )
 		{
@@ -464,7 +443,7 @@ GST_DEBUG_OBJECT (adjacent_elem, "done unref");
  * hasn't yet found the peer element it is looking for.
  */
 GooComponent *
-gst_goo_utils_find_goo_component (GstElement *elem, GType type)
+gst_goo_util_find_goo_component (GstElement *elem, GType type)
 {
 	SearchContext ctx;  /* only needed until this fxn returns, so alloc on stack */
 
@@ -478,6 +457,58 @@ gst_goo_utils_find_goo_component (GstElement *elem, GType type)
 	g_hash_table_destroy (ctx.visited_nodes);
 
 	return component;
+}
+
+
+/******************************************************************************/
+/******************************************************************************/
+/******************************************************************************/
+
+/* TODO:  move this stuff into some common base class of GstGooVideoFilter
+ *        and GstGooAudioFilter, since this doesn't really need to be global..
+ */
+
+/**
+ * Utility function to handle transferring Gstreamer timestamp to OMX
+ * timestamp.  This function handles discontinuities and timestamp
+ * renormalization.
+ *
+ * @factory    ugly hack.. this should be a method in a parent class of GstGooVideoFilter and GstGooAudioFilter
+ * @omx_buffer the destination OMX buffer for the timestamp
+ * @buffer     the source Gstreamer buffer for the timestamp
+ */
+void
+gst_goo_util_transfer_timestamp (GooComponentFactory *factory,
+		OMX_BUFFERHEADERTYPE* omx_buffer, GstBuffer* buffer)
+{
+	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
+
+	if (GST_GOO_UTIL_IS_DISCONT (buffer) && GOO_IS_TI_COMPONENT_FACTORY (factory))
+	{
+		/* note: subtract the buffer duration, because it will take some time for the frame
+		 * to get through the decoder to the point where the timestamp is checked:
+		 */
+		OMX_S64 omx_time = GST2OMX_TIMESTAMP ((gint64)(timestamp/* - GST_BUFFER_DURATION (buffer)*/));
+		GST_INFO ("reprogramming base time to: %lld", omx_time);
+		goo_ti_clock_set_starttime (GOO_TI_COMPONENT_FACTORY (factory)->clock, omx_time);
+	}
+
+	if (GST_GOO_UTIL_IS_DISCONT (buffer))
+	{
+		GST_INFO ("Setting OMX_BUFFER_STARTTIME..");
+		omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+	}
+
+	/* transfer timestamp to openmax */
+	if (GST_CLOCK_TIME_IS_VALID (timestamp))
+	{
+		omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP ((gint64)timestamp);
+		GST_INFO ("OMX timestamp = %lld (0x%08x)", omx_buffer->nTimeStamp, omx_buffer);
+	}
+	else
+	{
+		GST_WARNING ("Invalid timestamp!");
+	}
 }
 
 

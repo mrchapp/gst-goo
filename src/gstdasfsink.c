@@ -244,7 +244,7 @@ gst_dasf_clock_required (GstDasfSink* self)
 	guint retvalue = 0;
 	GooTiPostProcessor *peer_component = NULL;
 
-	GooTiVideoDecoder *video_decoder = gst_goo_utils_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_VIDEO_DECODER);
+	GooTiVideoDecoder *video_decoder = gst_goo_util_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_VIDEO_DECODER);
 
 	if(video_decoder == NULL)
 		goto done;
@@ -252,7 +252,7 @@ gst_dasf_clock_required (GstDasfSink* self)
 	GST_DEBUG_OBJECT (self, "Found a video decoder %s", GOO_OBJECT_NAME(GOO_OBJECT(video_decoder)));
 	GstGooVideoFilter *gst_video_dec =  GST_GOO_VIDEO_FILTER(g_object_get_data(G_OBJECT(video_decoder), "gst"));
 
-	peer_component = GOO_TI_POST_PROCESSOR (gst_goo_utils_find_goo_component (GST_ELEMENT (gst_video_dec), GOO_TYPE_TI_POST_PROCESSOR));
+	peer_component = GOO_TI_POST_PROCESSOR (gst_goo_util_find_goo_component (GST_ELEMENT (gst_video_dec), GOO_TYPE_TI_POST_PROCESSOR));
 	if (peer_component == NULL)
 		goto done;
 
@@ -272,7 +272,7 @@ gst_dasf_enable (GstDasfSink* self)
 
 	if (self->component == NULL)
 	{
-		component = gst_goo_utils_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_AUDIO_COMPONENT);
+		component = gst_goo_util_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_AUDIO_COMPONENT);
 
 		if (component == NULL)
 			return;

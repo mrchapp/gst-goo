@@ -229,30 +229,6 @@ gst_goo_decwma_wait_for_done (GstGooAudioFilter* self)
 }
 
 static gboolean
-gst_goo_decwma_src_event (GstPad* pad, GstEvent* event)
-{
-	GST_LOG ("");
-
-	GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (gst_pad_get_parent (pad));
-	gboolean ret = FALSE;
-
-	switch (GST_EVENT_TYPE (event))
-	{
-		case GST_EVENT_SEEK:
-			GST_INFO ("Seek Event");
-			self->seek_active = TRUE;
-			ret = gst_pad_push_event (self->sinkpad, event);
-			break;
-		default:
-			ret = FALSE;
-			break;
-	}
-
-	gst_object_unref (self);
-	return ret;
-}
-
-static gboolean
 gst_goo_decwma_sink_event (GstPad* pad, GstEvent* event)
 {
 	GST_LOG ("");
@@ -281,20 +257,6 @@ gst_goo_decwma_sink_event (GstPad* pad, GstEvent* event)
 		goo_component_set_state_executing(self->component);
 		ret = gst_pad_push_event (self->srcpad, event);
 		break;
-	case GST_EVENT_NEWSEGMENT:
-	{
-		gboolean update;
-		GstFormat fmt;
-		gint stop, time;
-		gdouble rate, arate;
-
-		gst_event_parse_new_segment_full (event, &update, &rate, &arate,
-			&fmt, &self->seek_time, &stop, &time);
-		GST_DEBUG_OBJECT (self, "New Start Time %"GST_TIME_FORMAT,
-			GST_TIME_ARGS (self->seek_time));
-		ret = gst_pad_push_event (self->srcpad, event);
-		break;
-	}
 	default:
 		ret = gst_pad_event_default (pad, event);
 		break;
@@ -402,7 +364,6 @@ typedef struct __rca_header {
 static GstBuffer*
 gst_goo_decwma_extra_buffer_processing(GstGooAudioFilter *filter, GstBuffer *buffer)
 {
-
 	GstGooDecWma *self = GST_GOO_DECWMA (filter);
 	GooTiAudioComponent *audio = GOO_TI_AUDIO_COMPONENT (filter->component);
 	WMA_HeadInfo *pHeaderInfo = audio->audioinfo->wmaHeaderInfo;
@@ -412,6 +373,7 @@ gst_goo_decwma_extra_buffer_processing(GstGooAudioFilter *filter, GstBuffer *buf
 	     Executing so that we can send the header buffer to OMX */
 	if (GST_IS_BUFFER (self->audio_header))
 	{
+		GstBuffer *orig_buffer = buffer;
 		GstBuffer *header_buffer = NULL;
 		if (self->parsed_header == FALSE)
 		{
@@ -457,6 +419,14 @@ gst_goo_decwma_extra_buffer_processing(GstGooAudioFilter *filter, GstBuffer *buf
 			buffer = gst_buffer_join (header_buffer, buffer);
 			self->parsed_header = TRUE;
 		}
+
+		/* Copy the timestamp from the original buffer, otherwise we don't have
+		 * a valid timestamp on the buffer, which makes OMX clock unhappy
+		 *
+		 * TODO: the cure seems worse than the disease.. or at least seems to
+		 * trigger some DSP crash.  Leave this disabled until this is debugged:
+		GST_BUFFER_TIMESTAMP (buffer) = GST_BUFFER_TIMESTAMP (orig_buffer);
+		 */
 	}
 
 	#if 0
@@ -561,7 +531,6 @@ gst_goo_decwma_init (GstGooDecWma* self, GstGooDecWmaClass* klass)
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER(self)->sinkpad, gst_goo_decwma_sink_setcaps);
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER(self)->srcpad, gst_goo_decwma_src_setcaps);
 	gst_pad_set_event_function (GST_GOO_AUDIO_FILTER(self)->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_decwma_sink_event));
-	gst_pad_set_event_function (GST_GOO_AUDIO_FILTER(self)->srcpad, GST_DEBUG_FUNCPTR (gst_goo_decwma_src_event));
 
 	g_object_set_data (G_OBJECT (GST_GOO_AUDIO_FILTER (self)->component), "gst", self);
 	g_object_set_data (G_OBJECT (self), "goo", GST_GOO_AUDIO_FILTER (self)->component);

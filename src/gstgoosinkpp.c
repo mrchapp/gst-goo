@@ -84,6 +84,8 @@ enum _GstGooSinkPPProp
 #define GST_GOO_SINKPP_GET_PRIVATE(obj) \
 	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_GOO_SINKPP, GstGooSinkPPPrivate))
 
+typedef struct _GstGooSinkPPPrivate GstGooSinkPPPrivate;
+
 struct _GstGooSinkPPPrivate
 {
 	guint incount;
@@ -93,7 +95,7 @@ struct _GstGooSinkPPPrivate
 	guint framerate;
 	guint color;
 	guint video_pipeline;
-        guint opacity;
+	guint opacity;
 };
 
 static const GstElementDetails details =
@@ -440,31 +442,34 @@ gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 		ret = TRUE;
 		break;
 	case GST_EVENT_NEWSEGMENT:
-		{
-			/* Set config start time to OMX clock*/
-			GstFormat fmt;
-      		gboolean is_update;
-			gint64 start, end, base;
-	   		gdouble rate;
-
-      		gst_event_parse_new_segment (event, &is_update, &rate, &fmt, &start,&end, &base);
 #if 0
 /* this will cause the OMX clock to be reset, which we do not want.. resetting
  * OMX clock on seek must be synchronized with the first buffer passed down
- * with OMX timestamp==0 (ie. first buffer after re-normalizing the OMX
- * timestamp) and this is achived by setting the OMX_BUFFERFLAG_STARTTIME
- * flag on the buffer rather than explicitly calling down to OMX_SetConfig()...
- * this way, the clock is reset from the OMX thread receiving the buffer
+ * with OMX because we don't really know how much time will elapse between
+ * now and when the first buffer with the new base time is sent:
  */
+		{
+			/* Set config start time to OMX clock*/
+			gdouble rate, applied_rate;
+      		GstFormat format;
+      		gint64 start, stop, pos;
+      		gboolean update;
+
+      		gst_event_parse_new_segment_full (event, &update, &rate, &applied_rate,
+          		&format, &start, &stop, &pos);
+
+      		GST_DEBUG_OBJECT (self, "rate %ld applied_rate %ld start %ld stop %ld pos %ld",
+      			rate, applied_rate, format, start, stop, pos);
+			GST_DEBUG ("Gstreamer start time: %"GST_TIME_FORMAT, GST_TIME_ARGS (start));
+
       		if (fmt == GST_FORMAT_TIME) {
 				GST_DEBUG ("Gstreamer start time: %lld\n", start*1000);
 				goo_ti_post_processor_set_starttime (self->component, start);
 			}
-#endif
 		}
+#endif
 		ret = TRUE;
         break;
-
 	case GST_EVENT_TAG:
 		ret = TRUE;
 		break;

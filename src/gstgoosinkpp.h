@@ -43,7 +43,6 @@ G_BEGIN_DECLS
 
 typedef struct _GstGooSinkPP GstGooSinkPP;
 typedef struct _GstGooSinkPPClass GstGooSinkPPClass;
-typedef struct _GstGooSinkPPPrivate GstGooSinkPPPrivate;
 
 struct _GstGooSinkPP
 {

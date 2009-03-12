@@ -66,7 +66,6 @@ struct _GstGooFilter
 #endif
 	GstClockTime running_time;
 	GstClockTime duration;
-	GstClockTime audio_timestamp;
 };
 
 struct _GstGooFilterClass

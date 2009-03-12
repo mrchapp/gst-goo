@@ -250,15 +250,12 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 	switch (GST_EVENT_TYPE (event))
 	{
 		case GST_EVENT_NEWSEGMENT:
-			if ((self->srcpad)!= NULL)
-			{
-#if 0
+#if 0  // TODO
 			priv->incount = 0;
 			priv->outcount = 0;
 			priv->flag_start = TRUE;
 #endif
 			ret = gst_pad_push_event (self->srcpad, event);
-			}
 			break;
 		case GST_EVENT_EOS:
 			gst_goo_video_filter_wait_for_done (self);
@@ -297,7 +294,7 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 		return FALSE;
 	}
 
-	peer_component = gst_goo_utils_find_goo_component (self, GOO_TYPE_TI_POST_PROCESSOR);
+	peer_component = gst_goo_util_find_goo_component (self, GOO_TYPE_TI_POST_PROCESSOR);
 
 	if (G_UNLIKELY (peer_component == NULL))
 	{
@@ -349,12 +346,6 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 
 }
 
-extern OMX_S64 global_omx_normalize_timestamp;
-extern gboolean global_omx_normalize_timestamp_changed;
-static gboolean waiting_for_normalize_timestamp = FALSE;
-
-static int framenum = 0;
-
 static GstFlowReturn
 gst_goo_video_filter_chain2 (GstPad* pad, GstBuffer* buffer)
 {
@@ -385,33 +376,22 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 
 	if (self->component->cur_state != OMX_StateExecuting)
 	{
-		return GST_FLOW_OK;
+		ret = GST_FLOW_OK;
+		goto done;
 	}
 
 	if (goo_port_is_eos (self->inport))
 	{
 		GST_INFO ("port is eos");
-		return GST_FLOW_UNEXPECTED;
+		ret = GST_FLOW_UNEXPECTED;
+		goto done;
 	}
 
 	/*This is done for first frame or when de base time are modified*/
-	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT) ||
-	   (timestamp == 0)  || /* for some reason, if user seeks back to beginning, we don't get DISCONT flag */
-	   global_omx_normalize_timestamp_changed)
+	if (GST_GOO_UTIL_IS_DISCONT (buffer))
 	{
-GST_INFO_OBJECT (self, "got DISCONT or first buffer");
-		waiting_for_normalize_timestamp = TRUE;
 		gst_goo_adapter_clear (adapter);
 	}
-
-	/* if we get the _DISCONT flag before audio, just drop some buffers */
-	if (waiting_for_normalize_timestamp && !global_omx_normalize_timestamp_changed)
-	{
-//GST_INFO_OBJECT (self, "waiting_for_normalize_timestamp=%d, global_omx_normalize_timestamp_changed=%d", waiting_for_normalize_timestamp, global_omx_normalize_timestamp_changed);
-		return GST_FLOW_OK;
-	}
-
-	waiting_for_normalize_timestamp = FALSE;
 
 	gst_goo_adapter_push (adapter, buffer);
 
@@ -434,33 +414,20 @@ GST_INFO_OBJECT (self, "got DISCONT or first buffer");
 		omx_buffer->nFilledLen = omxbufsiz;
 		gst_goo_adapter_flush (adapter, omxbufsiz);
 
-		/*This is done for first frame or when de base time are modified*/
-		if (global_omx_normalize_timestamp_changed)
-		{
-			GST_DEBUG_OBJECT (self, "OMX starttime flag %d",omx_buffer->nFlags );
-			omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
-		}
-
 		GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
 				GST_TIME_ARGS (timestamp));
 
-		/* transfer timestamp to openmax */
-		if (GST_CLOCK_TIME_IS_VALID (timestamp))
-		{
-			omx_buffer->nTimeStamp   = GST2OMX_TIMESTAMP ((gint64)timestamp) - global_omx_normalize_timestamp;
-			GST_INFO_OBJECT (self, "%d: OMX timestamp = %lld (= %lld - %lld)", framenum++, omx_buffer->nTimeStamp, GST2OMX_TIMESTAMP ((gint64)timestamp), global_omx_normalize_timestamp);
-		}
-		else
-		{
-			GST_WARNING_OBJECT (self, "Invalid timestamp!");
-		}
+		gst_goo_util_transfer_timestamp (self->factory, omx_buffer, buffer);
 
 		priv->incount++;
 		goo_component_release_buffer (self->component, omx_buffer);
-		global_omx_normalize_timestamp_changed = FALSE;
 GST_DEBUG_OBJECT (self, "released buffer..");
+
 		ret = GST_FLOW_OK;
 	}
+
+done:
+	gst_object_unref (self);
 
 	return ret;
 }
@@ -719,7 +686,6 @@ gst_goo_video_filter_dispose (GObject* object)
 	return;
 }
 
-
 static gboolean
 gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE* buffer)
 {
@@ -731,7 +697,7 @@ gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffe
 	GST_DEBUG_OBJECT (self, "");
 
 	/* We need to remove the OMX timestamp normalization */
-	timestamp += OMX2GST_TIMESTAMP(global_omx_normalize_timestamp);
+//	timestamp += OMX2GST_TIMESTAMP(omx_normalize_timestamp);
 
 	if (GST_CLOCK_TIME_IS_VALID (timestamp) && timestamp != 0)
 	{

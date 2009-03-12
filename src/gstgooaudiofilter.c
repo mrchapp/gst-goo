@@ -281,6 +281,17 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 			gst_goo_audio_filter_wait_for_done (self);
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
+		case GST_EVENT_FLUSH_START:
+			GST_INFO ("Flush Start Event");
+			goo_component_set_state_pause(self->component);
+			goo_component_flush_all_ports(self->component);
+			ret = gst_pad_push_event (self->srcpad, event);
+			break;
+		case GST_EVENT_FLUSH_STOP:
+			GST_INFO ("Flush Stop Event");
+			goo_component_set_state_executing(self->component);
+			ret = gst_pad_push_event (self->srcpad, event);
+			break;
 		default:
 			ret = gst_pad_event_default (pad, event);
 			break;
@@ -289,15 +300,6 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 	gst_object_unref (self);
 	return ret;
 }
-
-/**
- * The audio pipe controls the clock, and video is sync'd to audio.. which
- * means that video needs to use the same normalization offset
- */
-OMX_S64 global_omx_normalize_timestamp;
-gboolean global_omx_normalize_timestamp_changed = FALSE;
-
-static int framenum = 0;
 
 static GstFlowReturn
 gst_goo_audio_filter_chain2 (GstPad* pad, GstBuffer* buffer)
@@ -315,35 +317,21 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 
 	if (self->component->cur_state != OMX_StateExecuting)
 	{
-		return GST_FLOW_OK;
+		ret = GST_FLOW_OK;
+		goto done;
 	}
 
 	if (goo_port_is_eos (self->inport))
 	{
 		GST_INFO ("port is eos");
-		return GST_FLOW_UNEXPECTED;
+		ret = GST_FLOW_UNEXPECTED;
+		goto done;
 	}
 
 	/*This is done for first frame or when de base time are modified*/
-	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT) ||
-	   (timestamp == 0) /* for some reason, if user seeks back to beginning, we don't get DISCONT flag */ )
+	if (GST_GOO_UTIL_IS_DISCONT (buffer))
 	{
 		gst_goo_adapter_clear (adapter);
-		global_omx_normalize_timestamp = GST2OMX_TIMESTAMP (timestamp);
-		global_omx_normalize_timestamp_changed = TRUE;
-		GST_INFO ("omx_normalize_timestamp=%lld", global_omx_normalize_timestamp );
-	}
-
-	/* If we have re-normalized, discard audio buffers until video has passed down a frame
-	 * with OMX_BUFFER_STARTTIME set..
-	 * <p>
-	 * TODO: what about audio-only pipes.. maybe we should actually let video control the
-	 * re-normalization??
-	 */
-	if (global_omx_normalize_timestamp_changed)
-	{
-//GST_INFO_OBJECT (self, "global_omx_normalize_timestamp_changed=%d", global_omx_normalize_timestamp_changed);
-		return GST_FLOW_OK;
 	}
 
 	gst_goo_adapter_push (adapter, buffer);
@@ -400,21 +388,15 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 		GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
 				GST_TIME_ARGS (timestamp));
 
-		/* transfer timestamp to openmax */
-		if (GST_CLOCK_TIME_IS_VALID (timestamp))
-		{
-			omx_buffer->nTimeStamp   = GST2OMX_TIMESTAMP ((gint64)timestamp) - global_omx_normalize_timestamp ;
-			GST_INFO_OBJECT (self, "%d: OMX timestamp = %lld (= %lld - %lld)", framenum++, omx_buffer->nTimeStamp, GST2OMX_TIMESTAMP ((gint64)timestamp), global_omx_normalize_timestamp);
-		}
-		else
-		{
-			GST_WARNING_OBJECT (self, "Invalid timestamp!");
-		}
+		gst_goo_util_transfer_timestamp (self->factory, omx_buffer, buffer);
 
 		priv->incount++;
 		goo_component_release_buffer (self->component, omx_buffer);
 		ret = GST_FLOW_OK;
 	}
+
+done:
+	gst_object_unref (self);
 
 	return ret;
 }
@@ -839,7 +821,6 @@ gst_goo_audio_filter_init (GstGooAudioFilter* self, GstGooAudioFilterClass* klas
 	self->wbamr_mime = FALSE;
 
 	self->factory = goo_ti_component_factory_get_instance ();
-	global_omx_normalize_timestamp = 0;
 
 	/* GST */
 	GstPadTemplate* pad_template;
