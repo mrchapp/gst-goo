@@ -23,6 +23,7 @@ libgstgoo_la_SOURCES = \
 	gstgooencwbamr.c \
 	gstgooencgsmfr.c \
 	gstgooencaac.c \
+	gstgooencarmaac.c \
 	gstdasfsrc.c \
 	gstdasfsink.c \
 	gstgoo.c \
@@ -86,6 +87,7 @@ noinst_HEADERS = \
 	gstgooencwbamr.h \
 	gstgooencgsmfr.h \
 	gstgooencaac.h \
+	gstgooencarmaac.h \
 	gstdasfsrc.h \
 	gstdasfsink.h \
 	gstgoodecmpeg4.h \
