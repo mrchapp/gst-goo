@@ -53,6 +53,10 @@ static GstStaticPadTemplate sink_factory =
 							GST_STATIC_CAPS("video/x-svq, "
 											"width = (int) [16, 4096], "
 											"height = (int) [16, 4096], "
+											"framerate = (GstFraction) [0/1, 60/1];"
+											"video/x-gst-fourcc-FLV1, "
+											"width = (int) [16, 4096], "
+											"height = (int) [16, 4096], "
 											"framerate = (GstFraction) [0/1, 60/1]"));
 
 
