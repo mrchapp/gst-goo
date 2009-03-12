@@ -111,7 +111,7 @@ gst_goo_armaacenc_profile_type ()
 #define DEFAULT_SAMPLERATE   44100
 #define DEFAULT_BITRATE      128000 /* 1024 * 128 ?? */
 #define DEFAULT_PROFILE      OMX_AUDIO_AACObjectLC
-#define DEFAULT_BITRATEMODE  GOO_TI_AACENC_BR_CBR
+#define DEFAULT_BITRATEMODE  GOO_TI_ARMAACENC_BR_CBR
 #define DEFAULT_OUTPUTFORMAT OMX_AUDIO_AACStreamFormatMP4ADTS
 
 enum __GstGooEncArmAacProp
@@ -765,7 +765,7 @@ gst_goo_encarmaac_class_init (GstGooEncArmAacClass* klass)
 	g_object_class_install_property (g_klass, PROP_PROFILE, spec);
 
 	gst_klass->change_state =
-		GST_DEBUG_FUNCPTR (gst_goo_encaac_change_state);
+		GST_DEBUG_FUNCPTR (gst_goo_encarmaac_change_state);
 
 	return;
 }
