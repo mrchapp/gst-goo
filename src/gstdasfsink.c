@@ -81,6 +81,15 @@ struct _GstDasfSinkPrivate
 	guint clock_source;
 	guint clock_required;
 	gboolean first_time_playing;
+
+	/* We bypass the ringbuffer which GstBaseAudioSink tries to use, but we
+	 * still need to keep track of it's state, in order to make the preroll()
+	 * and render() methods behave properly..
+	 *
+	 * TODO: maybe we should just extend GstBaseSink, since we try so hard to
+	 * defeat/bypass all the functionality of GstBaseAudioSink/GstAudioSink?
+	 */
+	gboolean ring_buffer_acquired;
 };
 
 #define GST_DASF_SINK_CLOCK_SOURCE \
@@ -414,15 +423,23 @@ static GstFlowReturn
 gst_dasf_sink_render (GstBaseSink *sink, GstBuffer *buffer)
 {
 	GstDasfSink* self = GST_DASF_SINK (sink);
+	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (self);
 	GstFlowReturn ret = GST_FLOW_OK;
 
-	GST_LOG ("");
+	GST_LOG ("ring_buffer_acquired=%d", priv->ring_buffer_acquired);
+
+	/* can't do anything when we don't have the device */
+	if (G_UNLIKELY (!priv->ring_buffer_acquired))
+{ printf("%d:%s: ringbuffer not acquired!\n", __LINE__, GST_FUNCTION);
+		ret = GST_FLOW_NOT_NEGOTIATED;
+}
 
 	/* if needed, call deferred processing from the decoder: */
 	if (GST_IS_GHOST_BUFFER (buffer))
 	{
 		GstGhostBuffer *ghost_buffer = GST_GHOST_BUFFER(buffer);
-		ghost_buffer->chain (ghost_buffer->pad, ghost_buffer->buffer);
+		if (G_LIKELY (ret == GST_FLOW_OK))
+			ghost_buffer->chain (ghost_buffer->pad, ghost_buffer->buffer);
 		gst_object_unref (ghost_buffer->pad);
 		gst_buffer_unref (ghost_buffer->buffer);
 	}
@@ -433,12 +450,19 @@ gst_dasf_sink_render (GstBaseSink *sink, GstBuffer *buffer)
 static gboolean
 gst_dasf_sink_setcaps (GstBaseSink *sink, GstCaps *caps)
 {
+	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (sink);
 	GST_LOG ("");
+printf("setcaps\n");
 
 	/* we need to override this method to bypass some initialization done
 	 * in gstbaseaudiosink, which makes sense for real sinks but not for
 	 * dummy sinks.  (Perhaps we should just extend gstbasesink directly?)
 	 */
+
+	/* acquire "virtual" ringbuffer */
+	priv->ring_buffer_acquired = TRUE;
+
+
 	return TRUE;
 }
 
@@ -460,9 +484,21 @@ static GstFlowReturn
 gst_dasf_sink_preroll (GstBaseSink *sink, GstBuffer *buffer)
 {
 	GstDasfSink* self = GST_DASF_SINK (sink);
+	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (self);
 	GstFlowReturn ret = GST_FLOW_OK;
 
-	GST_LOG ("");
+	GST_LOG ("ring_buffer_acquired=%d", priv->ring_buffer_acquired);
+#if 0
+// TODO: we start to preroll again while still in PAUSED state but
+//       just before resuming.. so there is probably another spot
+//       where we need to set ring_buffer_acquired=TRUE.. but for
+//       now it seems good enough to just have the render() method
+//       check for proper state..
+	if (G_UNLIKELY (!priv->ring_buffer_acquired))
+{ printf("%d:%s: ringbuffer not acquired!\n", __LINE__, GST_FUNCTION);
+		ret = GST_FLOW_NOT_NEGOTIATED;
+}
+#endif
 
 	return ret;
 }
@@ -502,7 +538,27 @@ GST_BOILERPLATE_FULL (GstDasfSink, gst_dasf_sink, GstAudioSink,
 static GstStateChangeReturn
 gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 {
+	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (element);
 	GST_LOG ("");
+printf ("%s: change_state %d\n", GST_FUNCTION, transition);
+
+	switch (transition)
+	{
+//	case GST_STATE_CHANGE_NULL_TO_READY:
+//	case GST_STATE_CHANGE_READY_TO_PAUSED:
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+		/* acquire "virtual" ringbuffer */
+		priv->ring_buffer_acquired = TRUE;
+    	break;
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+	case GST_STATE_CHANGE_PAUSED_TO_READY:
+	case GST_STATE_CHANGE_READY_TO_NULL:
+		/* release "virtual" ringbuffer */
+		priv->ring_buffer_acquired = FALSE;
+		break;
+	default:
+		break;
+	}
 
 	return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
 }
@@ -731,8 +787,8 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_setcaps);
 
 	/* GST ELEMENT */
-	gst_element_klass->provide_clock =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_provide_clock);
+//	gst_element_klass->provide_clock =
+//		GST_DEBUG_FUNCPTR (gst_dasf_sink_provide_clock);
 
 	GST_ELEMENT_CLASS (klass)->change_state =
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_change_state);
@@ -769,6 +825,8 @@ gst_dasf_sink_init (GstDasfSink* self, GstDasfSinkClass* klass)
 	self->factory = goo_ti_component_factory_get_instance ();
 
 	gst_goo_util_register_pipeline_change_cb( self, gst_dasf_enable );
+
+//	gst_base_sink_set_async_enabled (self, FALSE);
 
 	return;
 }
