@@ -680,14 +680,14 @@ no_enc:
 	goo_component_set_supplier_port (self->postproc, port_pp, OMX_BufferSupplyInput);
 	gst_object_unref (port_pp);
 	
-		if (priv->vstab == TRUE)
+	GST_INFO_OBJECT (self, "going to idle");
+	goo_component_set_state_idle (self->camera);
+
+	if (priv->vstab == TRUE)
 	{
 		GST_INFO_OBJECT (self, "enabling vstab");
 		g_object_set (self->camera, "vstab", TRUE, NULL);
 	}
-
-	GST_INFO_OBJECT (self, "going to idle");
-	goo_component_set_state_idle (self->camera);
 
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
