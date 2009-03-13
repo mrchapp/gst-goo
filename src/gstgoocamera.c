@@ -297,22 +297,21 @@ gst_goo_camera_stop (GstBaseSrc* self)
 	GstGooCamera* me = GST_GOO_CAMERA (self);
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (self);
 
-	GST_DEBUG_OBJECT (self, "");
+	GST_DEBUG_OBJECT (self, "Stop enter");
 
 	if (priv->capture == TRUE)
 	{
 		GST_INFO_OBJECT (self, "Capture off");
 		g_object_set (me->camera, "capture", FALSE, NULL);
 	}
-
-	
 	
 	GST_INFO_OBJECT (self, "going to idle");
 	goo_component_set_state_idle (me->camera);
+	GST_INFO_OBJECT (self, "exit to idle");
 	
-	GST_INFO_OBJECT (self, "camera: going to loaded");
+	GST_INFO_OBJECT (self, "going to loaded");
 	goo_component_set_state_loaded (me->camera);
-
+	
 	return TRUE;
 }
 
@@ -567,12 +566,12 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		if (GOO_TI_CAMERA_GET_PARAM (self->camera)->bOneShot == TRUE)
 		{
 			param->format.image.eColorFormat = color;
-
+			
 		}
 		else
 		{
 			param->format.video.eColorFormat = color;
-
+			
 		}
 	}
 		
@@ -672,10 +671,6 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 							param->format.image.nFrameWidth = width;
 							param->format.image.nFrameHeight = height;
 							param->format.image.eColorFormat = color;
-							
-	
-								param->format.image.nFrameWidth,
-								param->format.image.nFrameHeight);
 							
 							g_object_unref (peer_port);
 						}		

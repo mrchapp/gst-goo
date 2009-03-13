@@ -152,22 +152,40 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
 	GstBuffer* gst_buffer = gst_goo_buffer_new ();
+	
 	gst_goo_buffer_set_data (gst_buffer, component, buffer);
 	priv->outcount++;
-
+	
 	gst_goo_video_filter_timestamp_buffer (self, gst_buffer, buffer);
-
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
 	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
-	gst_pad_push (self->srcpad, gst_buffer);
-
-	if (buffer->nFlags == OMX_BUFFERFLAG_EOS || goo_port_is_eos (port))
+	
+	if (goo_port_is_tunneled (self->inport) && (priv->outcount > priv->incount) )
 	{
-		GST_INFO ("EOS flag found in output buffer (%d)",
-			  buffer->nFilledLen);
-		goo_component_set_done (self->component);
+			GST_INFO ( "sending buffer with EOS flag");
+			buffer->nFlags |= OMX_BUFFERFLAG_EOS;
+			goo_component_release_buffer (self->component, buffer);
+											
+			if (buffer->nFlags == OMX_BUFFERFLAG_EOS || goo_port_is_eos (port))
+			{
+				GST_INFO ("EOS flag in output buffer (%d)",
+			  		buffer->nFilledLen);
+				goo_component_set_done (self->component);
+				GstEvent*   event = gst_event_new_eos();
+				gst_pad_push_event (self->srcpad, event);
+			}
 	}
-
+	else
+	{
+		
+		gst_pad_push (self->srcpad, gst_buffer);
+		if (buffer->nFlags == OMX_BUFFERFLAG_EOS || goo_port_is_eos (port))
+		{
+			GST_INFO ("EOS flag found in output buffer (%d)",
+			  	buffer->nFilledLen);
+			goo_component_set_done (self->component);
+		}
+	}
 	return;
 }
 
@@ -262,10 +280,19 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 			break;
 			
 		case GST_EVENT_EOS:
-			GST_INFO ("EOS event");
-			gst_goo_video_filter_wait_for_done (self);
-			ret = gst_pad_push_event (self->srcpad, event);
-			break;
+			if (!(goo_port_is_tunneled (self->inport)))
+			{
+				GST_INFO ("EOS event");
+				gst_goo_video_filter_wait_for_done (self);
+				ret = gst_pad_push_event (self->srcpad, event);
+				break;
+			}
+			else
+			{
+				gst_goo_video_filter_wait_for_done (self);
+				ret =TRUE;
+				break;				
+			}
 		default:
 			ret = gst_pad_event_default (pad, event);
 			break;
@@ -457,6 +484,7 @@ timestamp = buffer_stamp = GST_BUFFER_TIMESTAMP (buffer) = 0;
 	{
 		/* shall we send a ghost buffer here ? */
 		GST_INFO ("port is tunneled");
+		priv->incount++;
 		ret = GST_FLOW_OK;
 		if (goo_component_get_state (self->component) == OMX_StateLoaded)
 		{
@@ -563,7 +591,6 @@ done:
 	gst_object_unref (self);
 	return ret;
 }
-
 
 GST_BOILERPLATE (GstGooVideoFilter, gst_goo_video_filter, GstElement, GST_TYPE_ELEMENT);
 
