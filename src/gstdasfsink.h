@@ -26,7 +26,7 @@
 #include <goo-ti-audio-component.h>
 #include <goo-ti-post-processor.h>
 #include <goo-ti-clock.h>
-#include <gst/audio/gstaudiosink.h>
+#include <gst/base/gstbasesink.h>
 #include <goo-ti-component-factory.h>
 
 G_BEGIN_DECLS
@@ -50,7 +50,7 @@ typedef struct _GstDasfSinkPrivate GstDasfSinkPrivate;
 
 struct _GstDasfSink
 {
-	GstAudioSink element;
+	GstBaseSink element;
 	GooTiAudioComponent* component;
 	GooTiPostProcessor *pp;
 	GSList *tracks;
@@ -60,7 +60,7 @@ struct _GstDasfSink
 
 struct _GstDasfSinkClass
 {
-	GstAudioSinkClass parent_class;
+	GstBaseSinkClass parent_class;
 };
 
 GType gst_dasf_sink_get_type (void);

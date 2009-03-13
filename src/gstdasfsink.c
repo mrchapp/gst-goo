@@ -328,94 +328,11 @@ gst_dasf_enable (GstDasfSink* self)
 			goo_component_set_state_idle (self->clock);
 			GST_DEBUG_OBJECT (self, "Setting clock to executing");
 			goo_component_set_state_executing(self->clock);
+			goo_ti_clock_set_starttime (self->clock, 0);
 		}
 	}
 
 	return;
-}
-
-/* This group of functions need to be overriden so that the ring
- * buffer becomes useless in our implementation
- */
-static gboolean
-gst_dasf_sink_open_device (GstAudioSink *sink)
-{
-	GstDasfSink* self = GST_DASF_SINK (sink);
-	gboolean ret = TRUE;
-
-	GST_LOG ("No need to open device");
-
-	return ret;
-}
-
-static gboolean
-gst_dasf_sink_prepare_device (GstAudioSink *sink, GstRingBufferSpec *spec)
-{
-	GstDasfSink* self = GST_DASF_SINK (sink);
-	gboolean ret = TRUE;
-
-	GST_LOG ("No need to prepare device");
-
-	return ret;
-}
-
-static gboolean
-gst_dasf_sink_unprepare_device (GstAudioSink *sink )
-{
-	GstDasfSink* self = GST_DASF_SINK (sink);
-	gboolean ret = TRUE;
-
-	GST_LOG ("No need to unprepare device");
-
-	return ret;
-}
-
-static gboolean
-gst_dasf_sink_close_device (GstAudioSink *sink)
-{
-	GstDasfSink* self = GST_DASF_SINK (sink);
-	gboolean ret = TRUE;
-
-	GST_LOG ("No need to close device");
-
-	return ret;
-}
-
-static guint
-gst_dasf_sink_write_device (GstAudioSink *sink, gpointer data, guint length)
-{
-	GstDasfSink* self = GST_DASF_SINK (sink);
-	guint ret = 0;
-
-	/* note: we pretend to consume the entire buffer.. otherwise gstaudiosink
-	 * get stuck in an infinite loop:
-	 */
-//	ret = length;
-
-	GST_LOG ("Writing %d bytes", ret);
-
-	return ret;
-}
-
-static guint
-gst_dasf_sink_delay_device (GstAudioSink *sink)
-{
-	GstDasfSink* self = GST_DASF_SINK (sink);
-	guint ret = 0;
-
-	GST_LOG ("Delaying %d bytes", ret);
-
-	return ret;
-}
-
-static void
-gst_dasf_sink_reset_device (GstAudioSink *sink)
-{
-	GstDasfSink* self = GST_DASF_SINK (sink);
-	guint ret = 0;
-
-	GST_LOG ("Reset Device");
-
 }
 
 
@@ -430,9 +347,9 @@ gst_dasf_sink_render (GstBaseSink *sink, GstBuffer *buffer)
 
 	/* can't do anything when we don't have the device */
 	if (G_UNLIKELY (!priv->ring_buffer_acquired))
-{ printf("%d:%s: ringbuffer not acquired!\n", __LINE__, GST_FUNCTION);
+	{
 		ret = GST_FLOW_NOT_NEGOTIATED;
-}
+	}
 
 	/* if needed, call deferred processing from the decoder: */
 	if (GST_IS_GHOST_BUFFER (buffer))
@@ -452,7 +369,6 @@ gst_dasf_sink_setcaps (GstBaseSink *sink, GstCaps *caps)
 {
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (sink);
 	GST_LOG ("");
-printf("setcaps\n");
 
 	/* we need to override this method to bypass some initialization done
 	 * in gstbaseaudiosink, which makes sense for real sinks but not for
@@ -466,19 +382,6 @@ printf("setcaps\n");
 	return TRUE;
 }
 
-static GstClock *
-gst_dasf_sink_provide_clock (GstElement *elem)
-{
-	GST_LOG ("");
-
-	/* we need to override this method to return NULL, since
-	 * playback doesn't work at normal speed if we use
-	 * GstAudioSinkClock, but does work with the default
-	 * GstSystemClock...
-	 */
-	return NULL;
-}
-
 
 static GstFlowReturn
 gst_dasf_sink_preroll (GstBaseSink *sink, GstBuffer *buffer)
@@ -486,19 +389,6 @@ gst_dasf_sink_preroll (GstBaseSink *sink, GstBuffer *buffer)
 	GstDasfSink* self = GST_DASF_SINK (sink);
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (self);
 	GstFlowReturn ret = GST_FLOW_OK;
-
-	GST_LOG ("ring_buffer_acquired=%d", priv->ring_buffer_acquired);
-#if 0
-// TODO: we start to preroll again while still in PAUSED state but
-//       just before resuming.. so there is probably another spot
-//       where we need to set ring_buffer_acquired=TRUE.. but for
-//       now it seems good enough to just have the render() method
-//       check for proper state..
-	if (G_UNLIKELY (!priv->ring_buffer_acquired))
-{ printf("%d:%s: ringbuffer not acquired!\n", __LINE__, GST_FUNCTION);
-		ret = GST_FLOW_NOT_NEGOTIATED;
-}
-#endif
 
 	return ret;
 }
@@ -531,16 +421,15 @@ _do_init (GType dasfsink_type)
 	return;
 }
 
-GST_BOILERPLATE_FULL (GstDasfSink, gst_dasf_sink, GstAudioSink,
-		      GST_TYPE_AUDIO_SINK, _do_init);
+GST_BOILERPLATE_FULL (GstDasfSink, gst_dasf_sink, GstBaseSink,
+		      GST_TYPE_BASE_SINK, _do_init);
 
 
 static GstStateChangeReturn
 gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 {
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (element);
-	GST_LOG ("");
-printf ("%s: change_state %d\n", GST_FUNCTION, transition);
+	GST_LOG ("transition=%d", transition);
 
 	switch (transition)
 	{
@@ -710,8 +599,6 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 {
 	GObjectClass* g_klass;
 	GParamSpec* pspec;
-	GstAudioSinkClass* gst_klass;
-	GstBaseAudioSinkClass *gst_base_audio_klass;
 	GstBaseSinkClass* gst_base_klass;
 	GstElementClass *gst_element_klass;
 
@@ -757,26 +644,8 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 					 pspec);
 
 	/* GST */
-	gst_klass = GST_AUDIO_SINK_CLASS (klass);
-	gst_base_audio_klass = GST_BASE_AUDIO_SINK_CLASS (klass);
 	gst_base_klass = GST_BASE_SINK_CLASS (klass);
 	gst_element_klass = GST_ELEMENT_CLASS (klass);
-
-	/** GST AUDIO SINK **/
-	gst_klass->open =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_open_device);
-	gst_klass->prepare =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_prepare_device);
-	gst_klass->unprepare =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_unprepare_device);
-	gst_klass->close =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_close_device);
-	gst_klass->write =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_write_device);
-	gst_klass->delay =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_delay_device);
-	gst_klass->reset =
-		GST_DEBUG_FUNCPTR (gst_dasf_sink_reset_device);
 
 	/* GST BASE SINK */
 	gst_base_klass->preroll =
@@ -787,9 +656,6 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_setcaps);
 
 	/* GST ELEMENT */
-//	gst_element_klass->provide_clock =
-//		GST_DEBUG_FUNCPTR (gst_dasf_sink_provide_clock);
-
 	GST_ELEMENT_CLASS (klass)->change_state =
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_change_state);
 

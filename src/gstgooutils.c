@@ -483,20 +483,24 @@ gst_goo_util_transfer_timestamp (GooComponentFactory *factory,
 {
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 
-	if (GST_GOO_UTIL_IS_DISCONT (buffer) && GOO_IS_TI_COMPONENT_FACTORY (factory))
-	{
-		/* note: subtract the buffer duration, because it will take some time for the frame
-		 * to get through the decoder to the point where the timestamp is checked:
-		 */
-		OMX_S64 omx_time = GST2OMX_TIMESTAMP ((gint64)(timestamp/* - GST_BUFFER_DURATION (buffer)*/));
-		GST_INFO ("reprogramming base time to: %lld", omx_time);
-		goo_ti_clock_set_starttime (GOO_TI_COMPONENT_FACTORY (factory)->clock, omx_time);
-	}
-
 	if (GST_GOO_UTIL_IS_DISCONT (buffer))
 	{
-		GST_INFO ("Setting OMX_BUFFER_STARTTIME..");
-		omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+#if 0
+		if (GOO_IS_TI_COMPONENT_FACTORY (factory) && GOO_TI_COMPONENT_FACTORY (factory)->clock)
+		{
+			/* note: subtract the buffer duration, because it will take some time for the frame
+			 * to get through the decoder to the point where the timestamp is checked:
+			 */
+			OMX_S64 omx_time = GST2OMX_TIMESTAMP ((gint64)(timestamp /* - GST_BUFFER_DURATION (buffer)*/));
+			GST_INFO ("reprogramming base time to: %lld", omx_time);
+			goo_ti_clock_set_starttime (GOO_TI_COMPONENT_FACTORY (factory)->clock, omx_time);
+		}
+		else
+#endif
+		{
+			GST_INFO ("Setting OMX_BUFFER_STARTTIME..");
+			omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+		}
 	}
 
 	/* transfer timestamp to openmax */

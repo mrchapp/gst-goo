@@ -530,7 +530,7 @@ GST_BOILERPLATE (GstGooAudioFilter, gst_goo_audio_filter, GstElement, GST_TYPE_E
 static GstStateChangeReturn
 gst_goo_audio_filter_change_state (GstElement* element, GstStateChange transition)
 {
-	GST_LOG ("");
+	GST_LOG ("transition=%d", transition);
 
 	GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (element);
 	GstStateChangeReturn result;

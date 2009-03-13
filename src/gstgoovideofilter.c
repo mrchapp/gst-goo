@@ -512,7 +512,7 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 		ghost_buffer->chain  = gst_goo_video_filter_chain2;
 		ghost_buffer->pad    = gst_object_ref(pad);
-GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
+		//GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
 		ghost_buffer->buffer = gst_buffer_ref(buffer);
 
 		if (self->src_caps)
@@ -548,7 +548,7 @@ GST_BOILERPLATE (GstGooVideoFilter, gst_goo_video_filter, GstElement, GST_TYPE_E
 static GstStateChangeReturn
 gst_goo_video_filter_change_state (GstElement* element, GstStateChange transition)
 {
-	GST_LOG ("");
+	GST_LOG ("transition=%d", transition);
 
 	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (element);
 	GstStateChangeReturn result;
