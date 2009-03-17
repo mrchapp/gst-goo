@@ -44,6 +44,9 @@ GooComponent* gst_goo_util_find_goo_component (GstElement *elem, GType type);
  */
 void gst_goo_util_transfer_timestamp (GooComponentFactory *factory, OMX_BUFFERHEADERTYPE* omx_buffer, GstBuffer* buffer);
 
+GstEvent * gst_goo_event_new_reverse_eos (void);
+gboolean   gst_goo_event_is_reverse_eos (GstEvent *evt);
+
 
 G_END_DECLS
 

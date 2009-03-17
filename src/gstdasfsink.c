@@ -365,6 +365,25 @@ gst_dasf_sink_render (GstBaseSink *sink, GstBuffer *buffer)
 }
 
 static gboolean
+gst_dasf_sink_event (GstBaseSink *bsink, GstEvent *event)
+{
+	GST_INFO ("%s", GST_EVENT_TYPE_NAME (event));
+
+	switch (GST_EVENT_TYPE (event))
+	{
+	case GST_EVENT_EOS:
+		gst_element_send_event (GST_ELEMENT (bsink),
+				gst_goo_event_new_reverse_eos() );
+		break;
+	default:
+		break;
+	}
+
+	/* we don't want to bypass GstBaseSink's handling of the event: */
+	return TRUE;
+}
+
+static gboolean
 gst_dasf_sink_setcaps (GstBaseSink *sink, GstCaps *caps)
 {
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (sink);
@@ -652,6 +671,8 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_preroll);
 	gst_base_klass->render =
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_render);
+	gst_base_klass->event =
+		GST_DEBUG_FUNCPTR (gst_dasf_sink_event);
 	gst_base_klass->set_caps =
 		GST_DEBUG_FUNCPTR (gst_dasf_sink_setcaps);
 

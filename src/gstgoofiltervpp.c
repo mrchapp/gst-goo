@@ -32,6 +32,7 @@
 #include "gstgoofiltervpp.h"
 #include "gstgoobuffer.h"
 #include "gstghostbuffer.h"
+#include "gstgooutils.h"
 
 GST_BOILERPLATE (GstGooFilterVPP, gst_goo_filtervpp, GstElement,
 		 GST_TYPE_ELEMENT);
@@ -112,9 +113,6 @@ struct _GstGooFilterVPPPrivate
 
 #define GOO_TI_VPP_ROTATION \
 	(goo_ti_vpp_rotation_get_type())
-
-#define GST2OMX_TIMESTAMP(ts) (OMX_S64) (ts) / 1000;
-#define OMX2GST_TIMESTAMP(ts) (guint64) ts * 1000;
 
 #define LOG_CAPS(pad, caps)						\
 {									\

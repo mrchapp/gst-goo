@@ -32,6 +32,7 @@
 #include "gstgooencjpeg.h"
 #include "gstgoobuffer.h"
 #include "gstghostbuffer.h"
+#include "gstgooutils.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_goo_encjpeg_debug);
 #define GST_CAT_DEFAULT gst_goo_encjpeg_debug
@@ -91,8 +92,6 @@ struct _GstGooEncJpegPrivate
 #define WIDTH_DEFAULT 1024
 #define HEIGHT_DEFAULT 780
 #define COLOR_FORMAT_DEFAULT OMX_COLOR_FormatCbYCrY
-
-#define GST2OMX_TIMESTAMP(ts) (OMX_S64) ts / 1000000;
 
 static const GstElementDetails details =
 	GST_ELEMENT_DETAILS (

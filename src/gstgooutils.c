@@ -516,3 +516,41 @@ gst_goo_util_transfer_timestamp (GooComponentFactory *factory,
 }
 
 
+
+/******************************************************************************/
+/******************************************************************************/
+/******************************************************************************/
+
+/**
+ * This helper function is used to construct a custom event to send back
+ * upstream when the sink receives the EOS event.  In tunnelled mode,
+ * in some cases the upstream component (such as the video/audio decoder)
+ * needs to perform some cleanup (such as sending EOS to OMX), which should
+ * not happen until the GST layer sink receives the EOS.  The video/audio
+ * decoder should not assume that when it receives the EOS, that the sink
+ * has also received the EOS, since there may be multiple levels of queuing
+ * between the decoder and the sink (ie. in a GstQueue element, and also in
+ * the GstBaseSink class).
+ */
+GstEvent *
+gst_goo_event_new_reverse_eos (void)
+{
+	return gst_event_new_custom ( GST_EVENT_CUSTOM_UPSTREAM,
+			gst_structure_empty_new ("GstGooReverseEosEvent") );
+}
+
+/**
+ * Helper function to determine if a received event is a reverse-eol event.
+ */
+gboolean
+gst_goo_event_is_reverse_eos (GstEvent *evt)
+{
+	GstStructure *structure = gst_event_get_structure (evt);
+	if (structure)
+	{
+		return strcmp (gst_structure_get_name (structure), "GstGooReverseEosEvent") == 0;
+	}
+	return FALSE;
+}
+
+

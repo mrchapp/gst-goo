@@ -32,9 +32,7 @@
 #include "gstgoosinkpp.h"
 #include "gstgoobuffer.h"
 #include "gstghostbuffer.h"
-
-#define GST2OMX_TIMESTAMP(ts) (OMX_S64) ts / 1000;
-#define OMX2GST_TIMESTAMP(ts) (guint64) ts * 1000;
+#include "gstgooutils.h"
 
 #define DEFAULT_INPUT_BUFFERS 4
 #define DEFAULT_COLOR_FORMAT  OMX_COLOR_FormatCbYCrY
@@ -415,6 +413,7 @@ done:
 	return ret;
 }
 
+
 static gboolean
 gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 {
@@ -422,13 +421,14 @@ gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 
 	GstGooSinkPP* self = GST_GOO_SINKPP (bsink);
 
-	gboolean ret = FALSE;
-
 	g_assert (self->component != NULL);
 
 	switch (GST_EVENT_TYPE (event))
 	{
 	case GST_EVENT_EOS:
+		gst_element_send_event (GST_ELEMENT (bsink),
+				gst_goo_event_new_reverse_eos() );
+
 		if (goo_component_get_state (self->component) ==
 		    OMX_StateExecuting)
 		{
@@ -439,10 +439,10 @@ gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 
 			goo_component_wait_for_done (self->component);
 		}
-		ret = TRUE;
+
 		break;
-	case GST_EVENT_NEWSEGMENT:
 #if 0
+	case GST_EVENT_NEWSEGMENT:
 /* this will cause the OMX clock to be reset, which we do not want.. resetting
  * OMX clock on seek must be synchronized with the first buffer passed down
  * with OMX because we don't really know how much time will elapse between
@@ -467,24 +467,24 @@ gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 				goo_ti_post_processor_set_starttime (self->component, start);
 			}
 		}
-#endif
-		ret = TRUE;
         break;
+#endif
+#if 0
+/* these don't do anything interesting:
+ */
 	case GST_EVENT_TAG:
-		ret = TRUE;
 		break;
 	case GST_EVENT_FLUSH_START:
-		ret = TRUE;
 		break;
 	case GST_EVENT_FLUSH_STOP:
-		ret = TRUE;
 		break;
+#endif
 	default:
-		ret = gst_pad_event_default (GST_BASE_SINK_PAD (bsink), event);
 		break;
 	}
 
-	return ret;
+	/* we don't want to bypass GstBaseSink's handling of the event: */
+	return TRUE;
 }
 
 static gboolean

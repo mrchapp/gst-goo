@@ -278,7 +278,16 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_EOS:
-			gst_goo_audio_filter_wait_for_done (self);
+			/* if the outport is tunneled, that means we are pushing data
+			 * to the decoder from the context of the sink (see _chain()/
+			 * _chain2()).  Which also means that we need to wait until
+			 * the sink receives the EOS event to inform OMX until we
+			 * get the reverse EOS event back from the sink
+			 */
+			if (!goo_port_is_tunneled (self->outport))
+			{
+				gst_goo_audio_filter_wait_for_done (self);
+			}
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_FLUSH_START:
@@ -300,6 +309,38 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 	gst_object_unref (self);
 	return ret;
 }
+
+
+static gboolean
+gst_goo_audio_filter_src_event (GstPad *pad, GstEvent *event)
+{
+	GST_INFO ("%s", GST_EVENT_TYPE_NAME (event));
+
+	GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (gst_pad_get_parent (pad));
+	GstGooAudioFilterPrivate* priv = GST_GOO_AUDIO_FILTER_GET_PRIVATE (self);
+
+	gboolean ret;
+
+	g_assert (self->component != NULL);
+
+	switch (GST_EVENT_TYPE (event))
+	{
+		case GST_EVENT_CUSTOM_UPSTREAM:
+			if (gst_goo_event_is_reverse_eos (event) && goo_port_is_tunneled (self->outport))
+			{
+				gst_goo_audio_filter_wait_for_done (self);
+			}
+			ret = gst_pad_push_event (self->sinkpad, event);
+			break;
+		default:
+			ret = gst_pad_event_default (pad, event);
+			break;
+	}
+
+	gst_object_unref (self);
+	return ret;
+}
+
 
 static GstFlowReturn
 gst_goo_audio_filter_chain2 (GstPad* pad, GstBuffer* buffer)
@@ -842,6 +883,8 @@ gst_goo_audio_filter_init (GstGooAudioFilter* self, GstGooAudioFilterClass* klas
 	g_return_if_fail (pad_template != NULL);
 
 	self->srcpad = gst_pad_new_from_template (pad_template, "src");
+	gst_pad_set_event_function (self->srcpad,
+		GST_DEBUG_FUNCPTR (gst_goo_audio_filter_src_event));
 
 	gst_element_add_pad (GST_ELEMENT (self), self->srcpad);
 
