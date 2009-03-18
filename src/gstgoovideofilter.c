@@ -152,20 +152,20 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
 	GstBuffer* gst_buffer = gst_goo_buffer_new ();
-	
+
 	gst_goo_buffer_set_data (gst_buffer, component, buffer);
 	priv->outcount++;
-	
+
 	gst_goo_video_filter_timestamp_buffer (self, gst_buffer, buffer);
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
 	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
-	
+
 	if (goo_port_is_tunneled (self->inport) && (priv->outcount > priv->incount) )
 	{
 			GST_INFO ( "sending buffer with EOS flag");
 			buffer->nFlags |= OMX_BUFFERFLAG_EOS;
 			goo_component_release_buffer (self->component, buffer);
-											
+
 			if (buffer->nFlags == OMX_BUFFERFLAG_EOS || goo_port_is_eos (port))
 			{
 				GST_INFO ("EOS flag in output buffer (%d)",
@@ -177,7 +177,7 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	}
 	else
 	{
-		
+
 		gst_pad_push (self->srcpad, gst_buffer);
 		if (buffer->nFlags == OMX_BUFFERFLAG_EOS || goo_port_is_eos (port))
 		{
@@ -268,11 +268,9 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 	switch (GST_EVENT_TYPE (event))
 	{
 		case GST_EVENT_NEWSEGMENT:
-#if 0  // TODO
 			priv->incount = 0;
 			priv->outcount = 0;
 			priv->flag_start = TRUE;
-#endif
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_EOS:
@@ -387,9 +385,9 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 	/** Configure the next component tunneled port since we won't
 		have the caps configured by then.
 		@Todo: Change this to find which port is actually tunneled **/
-	
+
 		GooPort *peer_port = goo_component_get_port (peer_component, "input0");
-	
+
 		GOO_PORT_GET_DEFINITION (peer_port)->format.video.nFrameWidth =
 			GOO_PORT_GET_DEFINITION (self->outport)->format.video.nFrameWidth;
 
@@ -400,17 +398,17 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 			GOO_PORT_GET_DEFINITION (self->outport)->format.video.eColorFormat;
 		GOO_PORT_GET_DEFINITION (peer_port)->nBufferCountActual =
 			GOO_PORT_GET_DEFINITION (self->outport)->nBufferCountActual;
-	
+
 	/** @Todo: Change this to find which port is actually tunneled **/
 	goo_component_set_tunnel_by_name (self->component, "output0",
 						  peer_component, "input0", OMX_BufferSupplyInput);
 
-	
+
 	/*Sinkpp is buffer supplier*/
 	goo_component_set_supplier_port (peer_component, peer_port, OMX_BufferSupplyInput);
-		
+
 	g_object_unref (peer_port);
-	
+
 	GST_INFO ("Tunneled component successfully");
 
 	g_object_unref (peer_component);

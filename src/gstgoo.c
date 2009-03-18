@@ -105,8 +105,8 @@ static struct _element_entry _elements[] = {
 	{ "goodec_mpeg2", GST_RANK_PRIMARY, gst_goo_decmpeg2_get_type },
 	{ "goodec_nbamr", GST_RANK_PRIMARY, gst_goo_decnbamr_get_type },
 	{ "goodec_wbamr", GST_RANK_PRIMARY, gst_goo_decwbamr_get_type },
-    { "goodec_armaac", GST_RANK_PRIMARY, gst_goo_decarmaac_get_type },
-    { "gooenc_armaac", GST_RANK_PRIMARY, gst_goo_encarmaac_get_type },
+	{ "goodec_armaac", GST_RANK_SECONDARY, gst_goo_decarmaac_get_type },
+	{ "gooenc_armaac", GST_RANK_SECONDARY, gst_goo_encarmaac_get_type },
 	{ NULL, 0 },
 };
 
