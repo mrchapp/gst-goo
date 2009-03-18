@@ -464,10 +464,6 @@ gst_goo_util_find_goo_component (GstElement *elem, GType type)
 /******************************************************************************/
 /******************************************************************************/
 
-/* TODO:  move this stuff into some common base class of GstGooVideoFilter
- *        and GstGooAudioFilter, since this doesn't really need to be global..
- */
-
 static OMX_S64 omx_normalize_timestamp = 0;
 static gboolean needs_normalization = TRUE;
 
