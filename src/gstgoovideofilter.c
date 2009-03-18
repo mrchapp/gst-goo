@@ -457,7 +457,7 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 		GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
 				GST_TIME_ARGS (timestamp));
 
-		gst_goo_util_transfer_timestamp (self->factory, omx_buffer, buffer);
+		gst_goo_timestamp_gst2omx (omx_buffer, buffer, TRUE);
 
 		priv->incount++;
 		goo_component_release_buffer (self->component, omx_buffer);
@@ -731,19 +731,10 @@ gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffe
 {
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
-	gint64 buffer_ts = (gint64)buffer->nTimeStamp;
-	guint64 timestamp = OMX2GST_TIMESTAMP (buffer_ts);
-
 	GST_DEBUG_OBJECT (self, "");
 
-	/* We need to remove the OMX timestamp normalization */
-//	timestamp += OMX2GST_TIMESTAMP(omx_normalize_timestamp);
-
-	if (GST_CLOCK_TIME_IS_VALID (timestamp) && timestamp != 0)
+	if (gst_goo_timestamp_omx2gst (gst_buffer, buffer))
 	{
-		GST_INFO_OBJECT (self, "Already had a timestamp: %" GST_TIME_FORMAT,
-		GST_TIME_ARGS (timestamp));
-		GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
 		GST_BUFFER_DURATION (gst_buffer) = gst_util_uint64_scale_int (
 			GST_SECOND, self->rate_denominator, self->rate_numerator);
 	}

@@ -429,7 +429,7 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 		GST_DEBUG_OBJECT (self, "checking timestamp: time %" GST_TIME_FORMAT,
 				GST_TIME_ARGS (timestamp));
 
-		gst_goo_util_transfer_timestamp (self->factory, omx_buffer, buffer);
+		gst_goo_timestamp_gst2omx (omx_buffer, buffer, FALSE);
 
 		priv->incount++;
 		goo_component_release_buffer (self->component, omx_buffer);

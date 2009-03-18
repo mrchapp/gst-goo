@@ -468,54 +468,82 @@ gst_goo_util_find_goo_component (GstElement *elem, GType type)
  *        and GstGooAudioFilter, since this doesn't really need to be global..
  */
 
+static OMX_S64 omx_normalize_timestamp = 0;
+static gboolean needs_normalization = TRUE;
+
 /**
  * Utility function to handle transferring Gstreamer timestamp to OMX
  * timestamp.  This function handles discontinuities and timestamp
  * renormalization.
  *
- * @factory    ugly hack.. this should be a method in a parent class of GstGooVideoFilter and GstGooAudioFilter
  * @omx_buffer the destination OMX buffer for the timestamp
  * @buffer     the source Gstreamer buffer for the timestamp
+ * @normalize  should this buffer be the one that we renormalize on
+ *   (iff normalization is required)?  (ie. with TI OMX, you should
+ *   only re-normalize on a video buffer)
  */
-void
-gst_goo_util_transfer_timestamp (GooComponentFactory *factory,
-		OMX_BUFFERHEADERTYPE* omx_buffer, GstBuffer* buffer)
+gboolean
+gst_goo_timestamp_gst2omx (
+		OMX_BUFFERHEADERTYPE* omx_buffer,
+		GstBuffer* buffer,
+		gboolean normalize)
 {
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 
 	if (GST_GOO_UTIL_IS_DISCONT (buffer))
 	{
-#if 0
-		if (GOO_IS_TI_COMPONENT_FACTORY (factory) && GOO_TI_COMPONENT_FACTORY (factory)->clock)
-		{
-			/* note: subtract the buffer duration, because it will take some time for the frame
-			 * to get through the decoder to the point where the timestamp is checked:
-			 */
-			OMX_S64 omx_time = GST2OMX_TIMESTAMP ((gint64)(timestamp /* - GST_BUFFER_DURATION (buffer)*/));
-			GST_INFO ("reprogramming base time to: %lld", omx_time);
-			goo_ti_clock_set_starttime (GOO_TI_COMPONENT_FACTORY (factory)->clock, omx_time);
-		}
-		else
-#endif
-		{
-			GST_INFO ("Setting OMX_BUFFER_STARTTIME..");
-			omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
-		}
+		needs_normalization = TRUE;
+		GST_DEBUG ("needs_normalization");
+	}
+
+	if (needs_normalization && normalize)
+	{
+		GST_INFO ("Setting OMX_BUFFER_STARTTIME..");
+		omx_buffer->nFlags |= OMX_BUFFERFLAG_STARTTIME;
+		omx_normalize_timestamp = GST2OMX_TIMESTAMP ((gint64)timestamp);
+		needs_normalization = FALSE;
+		GST_DEBUG ("omx_normalize_timestamp=%lld", omx_normalize_timestamp);
 	}
 
 	/* transfer timestamp to openmax */
 	if (GST_CLOCK_TIME_IS_VALID (timestamp))
 	{
-		omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP ((gint64)timestamp);
+		omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP ((gint64)timestamp) - omx_normalize_timestamp;
 		GST_INFO ("OMX timestamp = %lld (0x%08x)", omx_buffer->nTimeStamp, omx_buffer);
+		return TRUE;
 	}
 	else
 	{
 		GST_WARNING ("Invalid timestamp!");
+		return FALSE;
 	}
 }
 
+/**
+ * Utility function to handle transferring an OMX timestamp to a Gstreamer
+ * timestamp
+ */
+gboolean
+gst_goo_timestamp_omx2gst (GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE *buffer)
+{
+	gint64 buffer_ts = (gint64)buffer->nTimeStamp;
+	guint64 timestamp = OMX2GST_TIMESTAMP (buffer_ts);
 
+	/* We need to remove the OMX timestamp normalization */
+	timestamp += OMX2GST_TIMESTAMP(omx_normalize_timestamp);
+
+	if (GST_CLOCK_TIME_IS_VALID (timestamp) && timestamp != 0)
+	{
+		GST_INFO_OBJECT ("Already had a timestamp: %" GST_TIME_FORMAT, GST_TIME_ARGS (timestamp));
+		GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
+		return TRUE;
+	}
+	else
+	{
+		GST_WARNING ("Invalid timestamp!");
+		return FALSE;
+	}
+}
 
 /******************************************************************************/
 /******************************************************************************/

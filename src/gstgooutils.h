@@ -39,10 +39,8 @@ GooComponent* gst_goo_util_find_goo_component (GstElement *elem, GType type);
 /* for some reason, if user seeks back to beginning, we don't get DISCONT flag */
 #define GST_GOO_UTIL_IS_DISCONT(buffer)  (GST_BUFFER_FLAG_IS_SET ((buffer), GST_BUFFER_FLAG_DISCONT) || (GST_BUFFER_TIMESTAMP ((buffer)) == 0))
 
-/* TODO:  move this stuff into some common base class of GstGooVideoFilter
- *        and GstGooAudioFilter, since this doesn't really need to be global..
- */
-void gst_goo_util_transfer_timestamp (GooComponentFactory *factory, OMX_BUFFERHEADERTYPE* omx_buffer, GstBuffer* buffer);
+gboolean gst_goo_timestamp_gst2omx (OMX_BUFFERHEADERTYPE* omx_buffer, GstBuffer* buffer, gboolean normalize);
+gboolean gst_goo_timestamp_omx2gst (GstBuffer *buffer, OMX_BUFFERHEADERTYPE *omx_buffer);
 
 GstEvent * gst_goo_event_new_reverse_eos (void);
 gboolean   gst_goo_event_is_reverse_eos (GstEvent *evt);
