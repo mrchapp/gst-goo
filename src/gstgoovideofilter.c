@@ -166,7 +166,7 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 			buffer->nFlags |= OMX_BUFFERFLAG_EOS;
 			goo_component_release_buffer (self->component, buffer);
 
-			if (buffer->nFlags == OMX_BUFFERFLAG_EOS || goo_port_is_eos (port))
+			if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
 			{
 				GST_INFO ("EOS flag in output buffer (%d)",
 			  		buffer->nFilledLen);
@@ -177,9 +177,8 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	}
 	else
 	{
-
 		gst_pad_push (self->srcpad, gst_buffer);
-		if (buffer->nFlags == OMX_BUFFERFLAG_EOS || goo_port_is_eos (port))
+		if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
 		{
 			GST_INFO ("EOS flag found in output buffer (%d)",
 			  	buffer->nFilledLen);
