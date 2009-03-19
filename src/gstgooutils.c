@@ -578,3 +578,24 @@ gst_goo_event_is_reverse_eos (GstEvent *evt)
 }
 
 
+/******************************************************************************/
+/******************************************************************************/
+/******************************************************************************/
+
+/* some utilities to manage state changes of goo/OMX components... add to these
+ * as-needed
+ */
+
+void
+gst_goo_util_ensure_executing (GooComponent *component)
+{
+	if (goo_component_get_state (component) == OMX_StateLoaded)
+	{
+		goo_component_set_state_idle (component);
+	}
+
+	if (goo_component_get_state (component) == OMX_StateIdle)
+	{
+		goo_component_set_state_executing (component);
+	}
+}

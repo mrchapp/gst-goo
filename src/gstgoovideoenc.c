@@ -25,6 +25,7 @@
 #endif
 
 #include "gstgoovideoenc.h"
+#include "gstgooutils.h"
 
 GST_BOILERPLATE (GstGooVideoEnc, gst_goo_videoenc, GstGooVideoFilter, GST_TYPE_GOO_VIDEO_FILTER);
 
@@ -186,7 +187,7 @@ gst_goo_videoenc_class_init (GstGooVideoEncClass* klass)
 static void
 gst_goo_videoenc_init (GstGooVideoEnc* self, GstGooVideoEncClass* klass)
 {
-	
+
 	return;
 }
 
@@ -203,6 +204,7 @@ gst_goo_videoenc_extra_buffer_processing (GstGooVideoFilter* filter, GstBuffer *
 	if (!frame_interval_flag)
 	{
 		GST_DEBUG_OBJECT (self, "Setting frame interval");
+		gst_goo_util_ensure_executing (component);
 		g_object_set (G_OBJECT (component), "frame-interval", DEFAULT_FRAMEINTERVAL, NULL);
 		frame_interval_flag = TRUE;
 
@@ -305,7 +307,7 @@ gst_goo_videoenc_transform_caps (GstGooVideoFilter* filter,
 		G_TYPE_INT, height, NULL);
 
 	gchar* strcaps = gst_caps_to_string (result);
-	GST_DEBUG_OBJECT (self, "transformed caps %s", strcaps);	
+	GST_DEBUG_OBJECT (self, "transformed caps %s", strcaps);
 	g_free (strcaps);
 
 	return result;

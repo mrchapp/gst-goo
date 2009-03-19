@@ -432,17 +432,7 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 
 	if (priv->incount == 0)
 	{
-		if (goo_component_get_state (self->component) == OMX_StateLoaded)
-		{
-			GST_INFO ("going to idle");
-			goo_component_set_state_idle (self->component);
-		}
-
-		if (goo_component_get_state (self->component) == OMX_StateIdle)
-		{
-			GST_INFO ("going to executing");
-			goo_component_set_state_executing (self->component);
-		}
+		gst_goo_util_ensure_executing (self->component);
 	}
 
 	if (self->component->cur_state != OMX_StateExecuting)
