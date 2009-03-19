@@ -61,8 +61,11 @@ static GstStaticPadTemplate sink_factory =
 											"systemstream = (boolean) FALSE,"
 											"width = (int) [16, 4096], "
 											"height = (int) [16, 4096], "
+											"framerate = (GstFraction) [0/1, 60/1];"
+									"video/x-gst-fourcc-mpg2, "
+											"width = (int) [16, 4096], "
+											"height = (int) [16, 4096], "
 											"framerate = (GstFraction) [0/1, 60/1]"));
-
 
 static void
 gst_goo_decmpeg2_base_init (gpointer g_klass)
