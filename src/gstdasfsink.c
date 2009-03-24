@@ -59,7 +59,7 @@ enum
 #define OMX_CLOCK 1
 #define AUTO_CLOCK 2
 
-#if 1
+#if 0
 #  define DEFAULT_CLOCK_SOURCE    OMX_CLOCK
 #  define DEFAULT_CLOCK_REQUIRED  OMX_CLOCK
 #else
