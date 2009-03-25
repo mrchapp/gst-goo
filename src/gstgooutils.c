@@ -59,6 +59,7 @@ already_visited ( GHashTable *visited_nodes, gpointer key )
 /******************************************************************************/
 
 typedef struct {
+	gboolean needs_cb;
 	void (*cb) (GstElement *elem);
 	GstElement *elem;
 	GHashTable *visited_nodes;  /* table of nodes we've already visited, to prevent loops */
@@ -92,29 +93,27 @@ static void hook_element (GstElement *elem, PipelineChangeListenerContext *ctx)
 		{
 			pad_added (elem, GST_PAD(item), ctx);
 		}
+		gst_iterator_free (itr);
 
 		/* in case this elem is a bin, we need to hook all the elements within
 		 * the bin too:
 		 */
 		if( GST_IS_BIN (elem) )
 		{
-			for( itr = gst_bin_iterate_elements (elem);
+			for( itr = gst_bin_iterate_elements (GST_BIN (elem));
 			     gst_iterator_next (itr, &item) == GST_ITERATOR_OK;
 			     gst_object_unref (item) )
 			{
 				hook_element (GST_ELEMENT (item), ctx);
 			}
+			gst_iterator_free (itr);
 		}
-	}
 
-	if (ctx->cb)
-	{
-		GST_INFO ("going to call callback");
-		ctx->cb (ctx->elem);
+		ctx->needs_cb = TRUE;
 	}
 }
 
-static void pad_linked (GstElement *pad, GstPad *peer, PipelineChangeListenerContext *ctx)
+static void pad_linked (GstPad *pad, GstPad *peer, PipelineChangeListenerContext *ctx)
 {
 	GST_INFO ("");
 	GstElement *elem = NULL;
@@ -147,6 +146,13 @@ static void pad_linked (GstElement *pad, GstPad *peer, PipelineChangeListenerCon
 	if (G_LIKELY (elem))
 	{
 		hook_element (elem, ctx);
+
+		if (ctx->needs_cb && ctx->cb)
+		{
+			GST_INFO ("going to call callback");
+			ctx->cb (ctx->elem);
+			ctx->needs_cb = FALSE;
+		}
 	}
 
 	if(obj)
@@ -167,7 +173,6 @@ static void pad_added (GstElement *elem, GstPad *pad, PipelineChangeListenerCont
 	if (peer != NULL)
 	{
 		pad_linked (pad, peer, ctx);
-
 		gst_object_unref (peer);
 	}
 	else
@@ -221,6 +226,7 @@ gst_goo_util_register_pipeline_change_cb (GstElement *elem, void (*cb) (GstEleme
 	/* ok, now that we have iterated and setup signal handlers, now we want any
 	 * further changes to generate a callback:
 	 */
+	ctx->needs_cb = FALSE;
 	ctx->cb = cb;
 
 	/* just in case everything is already wired up, call the cb once
@@ -275,10 +281,9 @@ check_for_goo_component (GstElement *elem, SearchContext *ctx)
 
 	if (component != NULL)
 	{
-		GST_INFO("found GOO component: %s", G_OBJECT_TYPE_NAME (component));
 		if (!G_TYPE_CHECK_INSTANCE_TYPE (component, ctx->type))
 		{
-			/* XXX do we need to release a ref here?? */
+			GST_INFO("found GOO component: %s", G_OBJECT_TYPE_NAME (component));
 			component = NULL;
 		}
 	}
@@ -295,6 +300,7 @@ find_goo_component_in_bin (GstBin *bin, SearchContext *ctx)
 {
 	GstIterator  *itr;
 	gpointer      item;
+	GooComponent *component = NULL;
 
 	GST_INFO ("bin=%s (%s)", gst_element_get_name (bin), G_OBJECT_TYPE_NAME (bin));
 
@@ -302,10 +308,9 @@ find_goo_component_in_bin (GstBin *bin, SearchContext *ctx)
 	 * while iterating.. we just bail out and the user needs to restart.
 	 */
 	for( itr = gst_bin_iterate_elements (bin);
-	     gst_iterator_next (itr, &item) == GST_ITERATOR_OK;
+	     gst_iterator_next (itr, &item) == GST_ITERATOR_OK && !component;
 	     gst_object_unref (item) )
 	{
-		GooComponent *component;
 		GstElement   *elem = GST_ELEMENT (item);
 
 		component = check_for_goo_component (elem, ctx);
@@ -314,13 +319,10 @@ find_goo_component_in_bin (GstBin *bin, SearchContext *ctx)
 		{
 			component = find_goo_component (elem, ctx);
 		}
-
-		if( component != NULL )
-		{
-			return component;
-		}
 	}
-	return NULL;
+	gst_iterator_free (itr);
+
+	return component;
 }
 
 
@@ -332,8 +334,7 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 {
 	GstIterator  *itr;
 	gpointer      item;
-	GstElement   *adjacent_elem = NULL;
-	GstObject    *obj = NULL;
+	GooComponent *component = NULL;
 
 
 	/* check if we've already examined this element, to prevent loops: */
@@ -349,10 +350,10 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 	 * while iterating.. we just bail out and the user needs to restart.
 	 */
 	for( itr = gst_element_iterate_pads (elem);
-	     gst_iterator_next (itr, &item) == GST_ITERATOR_OK;
+	     gst_iterator_next (itr, &item) == GST_ITERATOR_OK && !component;
 	     gst_object_unref (item) )
 	{
-		GooComponent *component;
+		GstElement   *adjacent_elem = NULL;
 		GstPad *pad = GST_PAD (item);
 		GstPad *peer = gst_pad_get_peer (pad);
 
@@ -370,12 +371,7 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 		 */
 		while(TRUE)
 		{
-			if(obj)
-			{
-				gst_object_unref (obj);
-			}
-
-			obj = gst_pad_get_parent (peer);
+			GstObject *obj = gst_pad_get_parent (peer);
 			if( GST_IS_PAD(obj) )
 			{
 				gst_object_unref (peer);
@@ -390,8 +386,8 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 
 		if (G_UNLIKELY (adjacent_elem == NULL))
 		{
-			GST_INFO ("Cannot find a adjacent element");
 			gst_object_unref (peer);
+			GST_INFO ("Cannot find a adjacent element");
 			continue;
 		}
 
@@ -420,15 +416,11 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 
 		/* cleanup: */
 		gst_object_unref (adjacent_elem);
-
-		if( component != NULL )
-		{
-			return component;
-		}
+		gst_object_unref (peer);
 	}
+	gst_iterator_free (itr);
 
-	/* if we get here, we didn't find 'nothin */
-	return NULL;
+	return component;
 }
 
 
@@ -505,7 +497,7 @@ gst_goo_timestamp_gst2omx (
 	if (GST_CLOCK_TIME_IS_VALID (timestamp))
 	{
 		omx_buffer->nTimeStamp = GST2OMX_TIMESTAMP ((gint64)timestamp) - omx_normalize_timestamp;
-		GST_INFO ("OMX timestamp = %lld (0x%08x)", omx_buffer->nTimeStamp, omx_buffer);
+		GST_INFO ("OMX timestamp = %lld (%lld - %lld)", omx_buffer->nTimeStamp, GST2OMX_TIMESTAMP ((gint64)timestamp), omx_normalize_timestamp);
 		return TRUE;
 	}
 	else
@@ -569,7 +561,7 @@ gst_goo_event_new_reverse_eos (void)
 gboolean
 gst_goo_event_is_reverse_eos (GstEvent *evt)
 {
-	GstStructure *structure = gst_event_get_structure (evt);
+	const GstStructure *structure = gst_event_get_structure (evt);
 	if (structure)
 	{
 		return strcmp (gst_structure_get_name (structure), "GstGooReverseEosEvent") == 0;
