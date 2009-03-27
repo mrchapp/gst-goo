@@ -412,12 +412,25 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		OMX_PARAM_SENSORMODETYPE* param =
 			GOO_TI_CAMERA_GET_PARAM (self->camera);
 
-		one_shot = param->bOneShot = (fps_n == 0 && fps_d == 1);
+		/**TRUE if some images will be captured**/	
+		one_shot = (fps_n == 0 && fps_d == 1);
+			
+		if ( one_shot == TRUE )
+		{
+			gint num_buff;
+			g_object_get (self, "num-buffers", &num_buff, NULL);
+			/**If only one image will be captured**/
+			if (num_buff == 1 )
+				param->bOneShot = TRUE;
+			else  
+			/**Mora than one image will be captured**/
+				param->bOneShot = FALSE;
+		}			
 		GST_INFO_OBJECT (self, "Oneshot mode = %d", param->bOneShot);
 
-		if (param->bOneShot == TRUE)
+		if ( one_shot == TRUE)
 		{
-			param->nFrameRate = 15;
+			param->nFrameRate = 0;
 		}
 		else if (fps_d != 0)
 		{
@@ -563,15 +576,16 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		OMX_PARAM_PORTDEFINITIONTYPE* param;
 		param = GOO_PORT_GET_DEFINITION (self->captureport);
 
-		if (GOO_TI_CAMERA_GET_PARAM (self->camera)->bOneShot == TRUE)
+		/**TRUE if some images will be captured**/	
+		if (one_shot == TRUE)
 		{
 			param->format.image.eColorFormat = color;
-			
+			param->eDomain = OMX_PortDomainImage;
 		}
-		else
+		else 
 		{
 			param->format.video.eColorFormat = color;
-			
+			param->eDomain = OMX_PortDomainVideo;
 		}
 	}
 		
@@ -723,6 +737,8 @@ no_enc:
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
 
+	sleep(1);
+	
 	if (component != NULL)
 	{
 		g_object_unref (component);
@@ -980,7 +996,6 @@ beach:
 	GST_DEBUG_OBJECT (me, "beach");
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount++;
 	GST_BUFFER_OFFSET_END (gst_buffer) = priv->outcount;
-
 	*buffer = gst_buffer;
 	return GST_FLOW_OK;
 

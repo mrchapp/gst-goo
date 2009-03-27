@@ -371,6 +371,7 @@ gst_goo_encjpeg_chain (GstPad* pad, GstBuffer* buffer)
 	{
 		GST_INFO ("Inport is tunneled");
 		ret = GST_FLOW_OK;
+		priv->incount++;
 		goto process_output;
 	}
 
@@ -535,14 +536,15 @@ process_output:
 		gst_buffer_set_caps (outbuf, GST_PAD_CAPS (self->srcpad));
 		g_signal_emit (G_OBJECT (self),
 			       gst_goo_encjpeg_signals[FRAME_ENCODED], 0);
+	
 		ret = gst_pad_push (self->srcpad, outbuf);
-
-		if (omx_buffer->nFlags == OMX_BUFFERFLAG_EOS ||
-		    goo_port_is_eos (self->outport))
+		if (omx_buffer->nFlags & OMX_BUFFERFLAG_EOS ||
+		   	goo_port_is_eos (self->outport))
 		{
 			GST_INFO ("EOS flag found in output buffer (%d)",
-				  omx_buffer->nFilledLen);
+			  	omx_buffer->nFilledLen);
 			goo_component_set_done (self->component);
+
 		}
 
 		goto done;
@@ -597,7 +599,7 @@ gst_goo_encjpeg_change_state (GstElement* element, GstStateChange transition)
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_OBJECT_LOCK (self);
 		if (goo_component_get_state (self->component) ==
-		    OMX_StatePause)
+		   	OMX_StatePause)
 		{
 			goo_component_set_state_executing (self->component);
 		}
@@ -618,7 +620,10 @@ gst_goo_encjpeg_change_state (GstElement* element, GstStateChange transition)
 		GST_OBJECT_UNLOCK (self);
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
+		if ( ! (goo_port_is_tunneled (self->inport)) )
+		{
 		omx_stop (self);
+		}
 		break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
 		break;
