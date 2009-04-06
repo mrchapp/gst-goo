@@ -23,9 +23,10 @@
 #ifndef __GST_GOO_DECARMAAC_H__
 #define __GST_GOO_DECARMAAC_H__
 
+#include <gst/gst.h>
 #include <goo-ti-component-factory.h>
-#include <gst/base/gstadapter.h>
-#include "gstgooaudiofilter.h"
+#include <gst/audio/audio.h>
+#include "gstgooadapter.h"
 
 G_BEGIN_DECLS
 
@@ -44,25 +45,39 @@ G_BEGIN_DECLS
 
 typedef struct _GstGooDecArmAac GstGooDecArmAac;
 typedef struct _GstGooDecArmAacClass GstGooDecArmAacClass;
-typedef struct _GstGooDecArmAacPrivate GstGooDecArmAacPrivate;
-
 
 struct _GstGooDecArmAac
 {
-	GstGooAudioFilter goofilter;
+	GstElement element;
 
-	/** @todo Remove these properties, should be parsed from the
- 	 *  original file **/
+	GstPad* sinkpad;
+	GstPad* srcpad;
+	guint64 ts;
+	guint64 prev_ts;
+	gboolean val_ts;
+	GstSegment segment;
+	
+	GstGooAdapter* adapter;
+
+	GooComponentFactory* factory;
+	GooComponent* component;
+	GooPort* inport;
+	GooPort* outport;
+
+    gboolean sbr;
+    gboolean bit_output;
+    gboolean parametric_stereo;
 	guint profile;
-	/*gboolean raw;*/
-	gboolean sbr;
-	gboolean bit_output;
-	gboolean parametric_stereo;
+	guint format;
+	gint channels;
+	gint rate;
+	gint duration;
+	guint outcount;
 };
 
 struct _GstGooDecArmAacClass
 {
-        GstGooAudioFilterClass parent_class;
+        GstElementClass parent_class;
 };
 
 GType gst_goo_decarmaac_get_type (void);
