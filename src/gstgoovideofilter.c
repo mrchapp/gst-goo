@@ -66,6 +66,7 @@ static gboolean gst_goo_video_filter_configure_caps (GstGooVideoFilter* self, Gs
 static gboolean gst_goo_video_filter_setcaps (GstPad *pad, GstCaps *caps);
 GstBuffer* gst_goo_video_filter_codec_data_processing (GstGooVideoFilter* self, GstBuffer *buffer);
 GstBuffer* gst_goo_video_filter_extra_buffer_processing (GstGooVideoFilter* self, GstBuffer *buffer);
+static gboolean gst_goo_video_filter_codec_data_extra_buffer (GstGooVideoFilter* self, GstBuffer *buffer);
 
 #define GST_TYPE_PROCESS_MODE (gst_goo_video_filter_process_mode_get_type())
 
@@ -315,7 +316,7 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 			ret = gst_pad_event_default (pad, event);
 			break;
 	}
-			
+
 	gst_object_unref (self);
 	return ret;
 }
@@ -462,6 +463,15 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 	else
 		omxbufsiz = GST_BUFFER_SIZE (buffer);
 
+
+	static gboolean if_first=TRUE;
+	if (if_first)
+	{
+		if ( gst_goo_video_filter_codec_data_extra_buffer (self, buffer))
+		GST_INFO (" ******  Codec_data_extra_buffer DONE !!!  ******");
+		if_first=FALSE;
+	}
+
 	while (gst_goo_adapter_available (adapter) >= omxbufsiz &&
 	       ret == GST_FLOW_OK && omxbufsiz != 0)
 	{
@@ -504,6 +514,7 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 	gint64 buffer_stamp = GST_BUFFER_TIMESTAMP (buffer);
+
 
 	if (goo_port_is_tunneled (self->inport))
 	{
@@ -811,6 +822,16 @@ gst_goo_video_filter_extra_buffer_processing_default (GstGooVideoFilter* self, G
 }
 
 
+static gboolean
+gst_goo_video_filter_codec_data_extra_buffer_default (GstGooVideoFilter* self, GstBuffer *buffer)
+{
+
+	GST_DEBUG ("No need to extra codec data buffer");
+	return TRUE;
+
+}
+
+
 static void
 gst_goo_video_filter_base_init (gpointer g_klass)
 {
@@ -871,6 +892,7 @@ gst_goo_video_filter_class_init (GstGooVideoFilterClass* klass)
 	gst_c_klass->codec_data_processing_func = GST_DEBUG_FUNCPTR (gst_goo_video_filter_codec_data_processing_default);
 	gst_c_klass->extra_buffer_processing_func = GST_DEBUG_FUNCPTR (gst_goo_video_filter_extra_buffer_processing_default);
 	gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_video_filter_set_process_mode_default);
+	gst_c_klass->codec_data_extra_buffer_func = GST_DEBUG_FUNCPTR (gst_goo_video_filter_codec_data_extra_buffer_default);
 
 	return;
 }
@@ -968,6 +990,21 @@ gst_goo_video_filter_extra_buffer_processing (GstGooVideoFilter* self, GstBuffer
 	}
 
 	return retbuf;
+
+}
+
+static gboolean
+gst_goo_video_filter_codec_data_extra_buffer (GstGooVideoFilter* self, GstBuffer *buffer)
+{
+	GstGooVideoFilterClass* klass = GST_GOO_VIDEO_FILTER_GET_CLASS (self);
+
+	gboolean retval = FALSE;
+	if (klass->codec_data_extra_buffer_func != NULL)
+	{
+		retval = (klass->codec_data_extra_buffer_func) (self, buffer);
+	}
+
+	return retval;
 
 }
 

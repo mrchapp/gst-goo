@@ -100,7 +100,7 @@ struct _GstGooVideoFilterClass
 	GstBuffer* (*codec_data_processing_func) (GstGooVideoFilter* self, GstBuffer *buffer);
 	GstBuffer* (*extra_buffer_processing_func) (GstGooVideoFilter* self, GstBuffer *buffer);
 	gboolean (*set_process_mode_func) (GstGooVideoFilter* self, guint value);
-
+	gboolean (*codec_data_extra_buffer_func) (GstGooVideoFilter* self, GstBuffer *buffer);
 };
 
 GType gst_goo_video_filter_get_type (void);
