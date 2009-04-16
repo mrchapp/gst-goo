@@ -59,14 +59,6 @@ enum
 #define OMX_CLOCK 1
 #define AUTO_CLOCK 2
 
-#if 0
-#  define DEFAULT_CLOCK_SOURCE    OMX_CLOCK
-#  define DEFAULT_CLOCK_REQUIRED  OMX_CLOCK
-#else
-#  define DEFAULT_CLOCK_SOURCE    GSTREAMER_CLOCK
-#  define DEFAULT_CLOCK_REQUIRED  GSTREAMER_CLOCK
-#endif
-
 
 #define GST_DASF_SINK_GET_PRIVATE(obj) \
 	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_DASF_SINK, GstDasfSinkPrivate))
@@ -613,6 +605,10 @@ gst_dasf_sink_base_init (gpointer g_klass)
 	return;
 }
 
+static guint default_clock_source;
+static guint default_clock_required;
+
+
 static void
 gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 {
@@ -620,6 +616,17 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	GParamSpec* pspec;
 	GstBaseSinkClass* gst_base_klass;
 	GstElementClass *gst_element_klass;
+
+	if (getenv("USE_OMX_CLOCK"))
+	{
+		default_clock_source   = OMX_CLOCK;
+		default_clock_required = OMX_CLOCK;
+	}
+	else
+	{
+		default_clock_source   = GSTREAMER_CLOCK;
+		default_clock_required = GSTREAMER_CLOCK;
+	}
 
 	/* gobject */
 	g_klass = G_OBJECT_CLASS (klass);
@@ -642,7 +649,7 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	pspec = g_param_spec_enum ("clock-source", "Clock Source",
 				   "Selects the clock source to synchronize",
 				   GST_DASF_SINK_CLOCK_SOURCE,
-				   DEFAULT_CLOCK_SOURCE, G_PARAM_READWRITE);
+				   default_clock_source, G_PARAM_READWRITE);
 
 	g_object_class_install_property (g_klass, PROP_CLOCK_SOURCE,
 					 pspec);
@@ -650,7 +657,7 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	pspec = g_param_spec_enum ("clock-required", "Clock Required",
 				   "The clock more suitable for the pipeline",
 				   GST_DASF_SINK_CLOCK_SOURCE,
-				   DEFAULT_CLOCK_REQUIRED, G_PARAM_READABLE);
+				   default_clock_required, G_PARAM_READABLE);
 
 	g_object_class_install_property (g_klass, PROP_CLOCK_REQUIRED,
 					 pspec);
@@ -694,8 +701,8 @@ gst_dasf_sink_init (GstDasfSink* self, GstDasfSinkClass* klass)
 	priv->volume = 100;
 	priv->mute = FALSE;
 	self->clock = NULL;
-	priv->clock_source = DEFAULT_CLOCK_SOURCE;
-	priv->clock_required = DEFAULT_CLOCK_REQUIRED;
+	priv->clock_source = default_clock_source;
+	priv->clock_required = default_clock_required;
 	priv->first_time_playing = TRUE;
 	self->component = NULL;
 	self->pp = NULL;
