@@ -28,6 +28,7 @@
 #include "gstgoovideofilter.h"
 #include "gstgooutils.h"
 #include "gstghostbuffer.h"
+#include "goo-semaphore.h"
 #include <gst/gstghostpad.h>
 #include <string.h>
 
@@ -101,6 +102,8 @@ struct _GstGooVideoFilterPrivate
 	guint outcount;
 	guint process_mode;
 
+	GooSemaphore* input_sem;
+
 	GstSegment segment;
 	gboolean flag_start;
 };
@@ -153,15 +156,23 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
 	GstBuffer* gst_buffer = gst_goo_buffer_new ();
+	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
 
 	gst_goo_buffer_set_data (gst_buffer, component, buffer);
 	priv->outcount++;
 
 	gst_goo_video_filter_timestamp_buffer (self, gst_buffer, buffer);
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
-	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
 
-	if (goo_port_is_tunneled (self->inport) && (priv->outcount > priv->incount) )
+	gboolean inport_tunneled = goo_port_is_tunneled (self->inport);
+
+	if (inport_tunneled)
+	{
+		g_assert (priv->input_sem);
+		goo_semaphore_up (priv->input_sem);
+	}
+
+	if (inport_tunneled && (priv->outcount > priv->incount) )
 	{
 			GST_INFO ( "sending buffer with EOS flag");
 			buffer->nFlags |= OMX_BUFFERFLAG_EOS;
@@ -518,8 +529,8 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 	if (goo_port_is_tunneled (self->inport))
 	{
-		/* shall we send a ghost buffer here ? */
 		GST_INFO ("port is tunneled");
+
 		priv->incount++;
 		ret = GST_FLOW_OK;
 		if (goo_component_get_state (self->component) == OMX_StateLoaded)
@@ -535,6 +546,11 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 			GST_INFO ("going to executing");
 			goo_component_set_state_executing (self->component);
 		}
+
+		/* we need to wait for gst_goo_video_filter_outport_buffer(): */
+		g_assert (priv->input_sem);
+		goo_semaphore_down (priv->input_sem, FALSE);
+
 		goto fail;
 	}
 
@@ -634,6 +650,15 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 
 	switch (transition)
 	{
+	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+		/* if we have tunneled input, we need to use the input_sem... so
+		 * ensure that it is allocated:
+		 */
+		if (goo_port_is_tunneled (self->inport) && !priv->input_sem)
+		{
+			priv->input_sem = goo_semaphore_new (0);
+		}
+		break;
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		/* goo_component_set_state_paused (self->component); */
 		break;
