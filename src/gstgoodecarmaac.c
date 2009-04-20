@@ -319,6 +319,7 @@ omx_start (GstGooDecArmAac* self)
 		omx_sync (self);
 		GST_INFO_OBJECT (self, "going to idle");
 		goo_component_set_state_idle (self->component);
+		GST_INFO_OBJECT (self, "gone to idle");
 	}
 
 	if (goo_component_get_state (self->component) == OMX_StateIdle)
@@ -335,17 +336,19 @@ omx_stop (GstGooDecArmAac* self)
 {
 	g_assert (self != NULL);
 	g_assert (self->component != NULL);
-	
+
 	if (goo_component_get_state (self->component) == OMX_StateExecuting)
 	{
 		GST_INFO_OBJECT (self, "going to idle");
 		goo_component_set_state_idle (self->component);
+		GST_INFO_OBJECT (self, "gone to idle");
 	}
-	
+
 	if (goo_component_get_state (self->component) == OMX_StateIdle)
 	{
 		GST_INFO_OBJECT (self, "going to loaded");
 		goo_component_set_state_loaded (self->component);
+		GST_INFO_OBJECT (self, "gone to loaded");
 	}
 
 	return;
@@ -358,7 +361,7 @@ omx_wait_for_done (GstGooDecArmAac* self)
 
 	OMX_BUFFERHEADERTYPE* omx_buffer = NULL;
 	OMX_PARAM_PORTDEFINITIONTYPE* param = NULL;
-	
+
 	param = GOO_PORT_GET_DEFINITION (self->inport);
 	int omxbufsiz = param->nBufferSize;
 	int avail = gst_goo_adapter_available (self->adapter);
@@ -412,36 +415,36 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 	prev_element = GST_ELEMENT (gst_pad_get_parent (peer));
 	str_peer = gst_element_get_name (prev_element);
 	comp_res = strncmp (compare, str_peer, 5);
-	
+
 	g_return_val_if_fail (gst_caps_get_size (caps) == 1, FALSE);
-	
+
 	structure = gst_caps_get_structure (caps, 0);
 	str_caps = gst_structure_to_string (structure);
-	
+
 	GST_DEBUG_OBJECT (self, "sink caps: %s", str_caps);
-	
+
 	if (gst_structure_has_field (structure, "codec_data"))
 	{
 		gint iIndex = 0;
-		
+
 		value = gst_structure_get_value (structure, "codec_data");
 		audio_header = gst_value_get_buffer (value);
-		
+
 		/* Lets see if we can get some information out of this crap */
 		iIndex = (((GST_BUFFER_DATA (audio_header)[0] & 0x7) << 1) |
 			((GST_BUFFER_DATA (audio_header)[1] & 0x80) >> 7));
 		channels = (GST_BUFFER_DATA (audio_header)[1] & 0x78) >> 3;
 		GST_DEBUG_OBJECT (self, "iIndex %d channels %d", iIndex, channels);
-		
+
 		{
 			OMX_AUDIO_PARAM_AACPROFILETYPE* param = NULL;
 			param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
-			
+
 			param->nSampleRate = sample_rates[iIndex];
 			param->nChannels = channels;
 			param->eAACStreamFormat = OMX_AUDIO_AACStreamFormatRAW;
 		}
-		
+
 		self->channels = channels;
 		self->rate = sample_rates[iIndex];
 		GST_DEBUG_OBJECT (self, "channels %d rate %d", self->channels,
@@ -464,9 +467,9 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 		{
 			OMX_AUDIO_PARAM_AACPROFILETYPE *param = NULL;
 			param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
-			
+
 			param->nChannels = self->channels;
-			
+
 			if ((comp_res == 0) || ((self->sbr == FALSE) && 
 				(self->parametric_stereo == FALSE)))
 			{
@@ -505,10 +508,10 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 			}
 		}
 	}
-	
+
 	gst_object_unref (prev_element);
 	gst_object_unref (peer);
-	
+
 	gst_pad_set_caps (self->srcpad, copy);
 	gst_caps_unref (copy);
 
@@ -516,7 +519,7 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 	gst_object_unref (self);
 
 	GST_DEBUG_OBJECT (self, "");
-	
+
 	return TRUE;
 }
 
@@ -541,7 +544,7 @@ gst_goo_decarmaac_chain (GstPad* pad, GstBuffer* buffer)
 		ret = process_output_buffer (self, omxbuf);
 		goto done;
 	}
-	
+
 	/* discontinuity clears adapter, FIXME, maybe we can set some
 	 * encoder flag to mask the discont. */
 	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
@@ -557,7 +560,7 @@ gst_goo_decarmaac_chain (GstPad* pad, GstBuffer* buffer)
 		self->ts = GST_BUFFER_TIMESTAMP (buffer);
 		self->val_ts = TRUE;
 	}
-	
+
 	ret = GST_FLOW_OK;
 	GST_DEBUG_OBJECT (self, "Pushing a GST buffer to adapter (%d)",
 			  GST_BUFFER_SIZE (buffer));
@@ -613,8 +616,72 @@ gst_goo_decarmaac_bytepos_to_time (GstGooDecArmAac *self,
 
   *ts = (GstClockTime) gst_util_uint64_scale (GST_SECOND, bytepos * 8,
       self->rate);
-    
+
   return TRUE;
+}
+
+static void
+gst_goo_decarmaac_wait_for_done (GstGooDecArmAac* self)
+{
+	g_assert (self != NULL);
+
+	/* flushing the last buffers in adapter */
+
+	OMX_BUFFERHEADERTYPE* omx_buffer;
+	OMX_PARAM_PORTDEFINITIONTYPE* param =
+		GOO_PORT_GET_DEFINITION (self->inport);
+	GstGooAdapter* adapter = self->adapter;
+	int omxbufsiz = param->nBufferSize;
+	int avail = gst_goo_adapter_available (adapter);
+
+	if (goo_port_is_tunneled (self->inport))
+	{
+		GST_INFO ("Input port is tunneled: Setting done");
+		goo_component_set_done (self->component);
+		return;
+	}
+
+	if (avail < omxbufsiz && avail > 0)
+	{
+		GST_INFO ("Marking EOS buffer");
+		omx_buffer = goo_port_grab_buffer (self->inport);
+		GST_DEBUG ("Peek to buffer %d bytes", avail);
+		gst_goo_adapter_peek (adapter, avail, omx_buffer);
+		omx_buffer->nFilledLen = avail;
+		/* let's send the EOS flag right now */
+		omx_buffer->nFlags |= OMX_BUFFERFLAG_EOS;
+		goo_component_release_buffer (self->component, omx_buffer);
+	}
+	else if (avail == 0)
+	{
+		GST_DEBUG ("Sending empty buffer with EOS flag in it");
+		goo_component_send_eos (self->component);
+	}
+	else
+	{
+		/* For some reason the adapter didn't extract all
+		   possible buffers */
+		GST_ERROR ("Adapter algorithm error!");
+		goo_component_send_eos (self->component);
+	}
+
+	gst_goo_adapter_clear (adapter);
+
+	GST_INFO ("Waiting for done signal");
+	if (goo_port_is_tunneled (self->outport))
+	{
+		GST_INFO ("Outport is tunneled: Setting done");
+		goo_component_set_done (self->component);
+	}
+	else
+	{
+		GST_INFO ("Not Waiting for done signal");
+		GST_INFO ("Working around OMAPS00198928");
+		goo_component_set_done (self->component);
+		//goo_component_wait_for_done (self->component);
+	}
+
+	return;
 }
 
 static gboolean
@@ -675,6 +742,11 @@ gst_goo_decarmaac_sink_event (GstPad * pad, GstEvent * event)
       /* Clear our adapter and set up for a new position */
       gst_goo_adapter_clear (self->adapter);
       omx_wait_for_done (self);
+      res = gst_pad_push_event (self->srcpad, event);
+      break;
+    case GST_EVENT_EOS:
+      GST_INFO ("EOS event");
+      gst_goo_decarmaac_wait_for_done (self);
       res = gst_pad_push_event (self->srcpad, event);
       break;
     default:
