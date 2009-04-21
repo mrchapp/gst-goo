@@ -436,8 +436,6 @@ gst_goo_sinkpp_event (GstBaseSink *bsink, GstEvent* event)
 			{
 				goo_component_send_eos (self->component);
 			}
-
-			goo_component_wait_for_done (self->component);
 		}
 
 		break;
