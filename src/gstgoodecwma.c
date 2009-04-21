@@ -420,13 +420,7 @@ gst_goo_decwma_extra_buffer_processing(GstGooAudioFilter *filter, GstBuffer *buf
 			self->parsed_header = TRUE;
 		}
 
-		/* Copy the timestamp from the original buffer, otherwise we don't have
-		 * a valid timestamp on the buffer, which makes OMX clock unhappy
-		 *
-		 * TODO: the cure seems worse than the disease.. or at least seems to
-		 * trigger some DSP crash.  Leave this disabled until this is debugged:
 		GST_BUFFER_TIMESTAMP (buffer) = GST_BUFFER_TIMESTAMP (orig_buffer);
-		 */
 	}
 
 	#if 0
