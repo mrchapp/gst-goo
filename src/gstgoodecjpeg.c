@@ -1084,12 +1084,13 @@ process_output_buffer (GstGooDecJpeg* self, OMX_BUFFERHEADERTYPE* buffer){
 	return ret;
 }
 
+static GstFlowReturn gst_goo_decjpeg_process_input_buffer (GstGooDecJpeg* self);
+
 
 static GstFlowReturn
 gst_goo_decjpeg_chain (GstPad* pad, GstBuffer* buffer)
 {
 	GST_LOG ("");
-
 
 	GstGooDecJpeg* self = GST_GOO_DECJPEG (gst_pad_get_parent (pad));
 	GstGooDecJpegPrivate* priv = GST_GOO_DECJPEG_GET_PRIVATE (self);
@@ -1126,6 +1127,15 @@ gst_goo_decjpeg_chain (GstPad* pad, GstBuffer* buffer)
 
 	if (G_LIKELY (priv->tempbuf))
 	{
+		/* if the src is not emitting all buffers as a child of a common
+		 * parent buffer, this could be really expensive.. why not just
+		 * copy directly to an OMX buffer?
+		 *
+		 * btw, if using a filesrc, setting "use-mmap=1", and if necessary
+		 * increasing "mmapsize" to a value large enough to map the entire
+		 * input file in one shot, will result in all buffers having a common
+		 * parent so that this doesn't perform too badly..
+		 */
 		priv->tempbuf = gst_buffer_join (priv->tempbuf, buffer);
 	}
 	else
@@ -1133,7 +1143,43 @@ gst_goo_decjpeg_chain (GstPad* pad, GstBuffer* buffer)
 		priv->tempbuf = buffer;
 	}
 
-	buffer = NULL;
+	GST_INFO ("offset=%d, offset_end=%d", buffer->offset, buffer->offset_end);
+
+	/* Don't bother trying to start parsing the data until we get the entire
+	 * image... we could get many 100's of more buffers before we get the
+	 * entire image, and we don't want to do all the header parsing each time:
+	 */
+	if (priv->packetized)
+	{
+		ret = gst_goo_decjpeg_process_input_buffer (self);
+	}
+	else
+	{
+		ret = GST_FLOW_OK;
+	}
+
+process_output:
+	if (goo_port_is_tunneled (self->outport))
+	{
+
+		GstBuffer* buffer = gst_ghost_buffer_new ();
+		/* gst_buffer_set_caps (buffer, GST_PAD_CAPS (self->srcpad)); */
+		gst_pad_push (self->srcpad, buffer);
+
+		goto done;
+	}
+
+done:
+	gst_object_unref (self);
+
+	return ret;
+}
+
+static GstFlowReturn
+gst_goo_decjpeg_process_input_buffer (GstGooDecJpeg* self)
+{
+	GstGooDecJpegPrivate* priv = GST_GOO_DECJPEG_GET_PRIVATE (self);
+	GstFlowReturn ret = GST_FLOW_OK;
 
 	if (!gst_goo_decjpeg_ensure_header (self)) /* <--- */
 	{
@@ -1194,19 +1240,19 @@ gst_goo_decjpeg_chain (GstPad* pad, GstBuffer* buffer)
 	if (width != priv->caps_width || height != priv->caps_height ||
 	    priv->framerate_numerator != priv->caps_framerate_numerator ||
 	    priv->framerate_denominator != priv->caps_framerate_denominator)
+	{
+
+		if (!negotiate_caps (self))
 		{
-
-			if (!negotiate_caps (self))
-				{
-					goto negotiation_failure;
-				}
-
-			if (!configure_omx (self))
-				{
-					/* @todo */
-				}
-
+			goto negotiation_failure;
 		}
+
+		if (!configure_omx (self))
+		{
+			/* @todo */
+		}
+
+	}
 
 	/* if we aren't ready yet */
 	if (self->component->cur_state != OMX_StateExecuting)
@@ -1234,16 +1280,6 @@ gst_goo_decjpeg_chain (GstPad* pad, GstBuffer* buffer)
 		priv->buffer_slice = gst_buffer_new_and_alloc(priv->size);
 	}
 
-process_output:
-	if (goo_port_is_tunneled (self->outport))
-	{
-
-		GstBuffer* buffer = gst_ghost_buffer_new ();
-		/* gst_buffer_set_caps (buffer, GST_PAD_CAPS (self->srcpad)); */
-		gst_pad_push (self->srcpad, buffer);
-
-                goto done;
-	}
 #if 0
         OMX_BUFFERHEADERTYPE* omx_buffer;
         {
@@ -1265,7 +1301,7 @@ process_output:
 				  omx_buffer->nFilledLen,
 				  GST_PAD_CAPS (self->srcpad),
 				  &outbuf) == GST_FLOW_OK)
-	{
+        {
                 memmove (GST_BUFFER_DATA (outbuf), omx_buffer->pBuffer,
                          omx_buffer->nFilledLen);
                 goo_component_release_buffer (self->component, omx_buffer);
@@ -1332,7 +1368,6 @@ done:
 	}
 
 exit:
-	gst_object_unref (self);
 
 	return ret;
 
@@ -1424,6 +1459,10 @@ gst_goo_decjpeg_event (GstPad* pad, GstEvent* event)
 	case GST_EVENT_EOS:
 		{
 			GST_INFO_OBJECT (self, "EOS event");
+			if (!priv->packetized)
+			{
+				gst_goo_decjpeg_process_input_buffer (self);
+			}
 			if (goo_component_get_state (self->component) == OMX_StateExecuting)
 				gst_goo_jpeg_dec_wait_for_done(self);
 			ret = gst_pad_push_event (self->srcpad, event);
