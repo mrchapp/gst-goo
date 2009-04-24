@@ -617,14 +617,17 @@ gst_dasf_sink_class_init (GstDasfSinkClass* klass)
 	GParamSpec* pspec;
 	GstBaseSinkClass* gst_base_klass;
 	GstElementClass *gst_element_klass;
+	const char *env;
 
-	if (getenv("USE_OMX_CLOCK"))
+	if ((env=getenv("USE_OMX_CLOCK")) && (atoi(env) == 1))
 	{
+		GST_INFO ("using OMX_CLOCK as default");
 		default_clock_source   = OMX_CLOCK;
 		default_clock_required = OMX_CLOCK;
 	}
 	else
 	{
+		GST_INFO ("using GSTREAMER_CLOCK as default");
 		default_clock_source   = GSTREAMER_CLOCK;
 		default_clock_required = GSTREAMER_CLOCK;
 	}
