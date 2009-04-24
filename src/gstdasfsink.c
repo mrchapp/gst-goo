@@ -254,13 +254,14 @@ gst_dasf_clock_required (GstDasfSink* self)
 	GstGooVideoFilter *gst_video_dec =  GST_GOO_VIDEO_FILTER(g_object_get_data(G_OBJECT(video_decoder), "gst"));
 
 	peer_component = GOO_TI_POST_PROCESSOR (gst_goo_util_find_goo_component (GST_ELEMENT (gst_video_dec), GOO_TYPE_TI_POST_PROCESSOR));
+	GST_INFO("peer_component=0x%08x", peer_component);
 	if (peer_component == NULL)
 		goto done;
 
 	self->pp = peer_component;
 	retvalue = 1;
 
-	done:
+done:
 	return retvalue;
 }
 

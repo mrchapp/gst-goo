@@ -76,7 +76,7 @@ static void hook_element (GstElement *elem, PipelineChangeListenerContext *ctx)
 	/* check if we've already examined this element, to prevent loops: */
 	if (!already_visited (ctx->visited_nodes, elem))
 	{
-		GST_INFO ("");
+		GST_INFO_OBJECT (elem, "");
 
 		g_signal_connect (elem, "pad-added", (GCallback)pad_added, ctx);
 
@@ -115,7 +115,7 @@ static void hook_element (GstElement *elem, PipelineChangeListenerContext *ctx)
 
 static void pad_linked (GstPad *pad, GstPad *peer, PipelineChangeListenerContext *ctx)
 {
-	GST_INFO ("");
+	GST_INFO_OBJECT (pad, "");
 	GstElement *elem = NULL;
 	GstObject *obj = NULL;
 
@@ -313,12 +313,7 @@ find_goo_component_in_bin (GstBin *bin, SearchContext *ctx)
 	{
 		GstElement   *elem = GST_ELEMENT (item);
 
-		component = check_for_goo_component (elem, ctx);
-
-		if( component == NULL )
-		{
-			component = find_goo_component (elem, ctx);
-		}
+		component = find_goo_component (elem, ctx);
 	}
 	gst_iterator_free (itr);
 
@@ -330,7 +325,7 @@ find_goo_component_in_bin (GstBin *bin, SearchContext *ctx)
  * recursively iterate all our pads and search adjacent elements
  */
 static GooComponent *
-find_goo_component (GstElement *elem, SearchContext *ctx)
+find_goo_component_in_elem (GstElement *elem, SearchContext *ctx)
 {
 	GstIterator  *itr;
 	gpointer      item;
@@ -393,32 +388,35 @@ find_goo_component (GstElement *elem, SearchContext *ctx)
 
 		GST_INFO ("found adjacent_elem: %s", gst_element_get_name (adjacent_elem));
 
-		component = check_for_goo_component (adjacent_elem, ctx);
-
-		if (component == NULL)
-		{
-			/* if adjacent_elem is itself a bin, we need to search the
-			 * contents of that bin:
-			 */
-			if( GST_IS_BIN (adjacent_elem) )
-			{
-				component = find_goo_component_in_bin (GST_BIN (adjacent_elem), ctx);
-			}
-		}
-
-		if (component == NULL)
-		{
-			/* if we didn't find our component, recursively search
-			 * the contents of adjacent_elem's pads:
-			 */
-			component = find_goo_component (adjacent_elem, ctx);
-		}
+		component = find_goo_component (adjacent_elem, ctx);
 
 		/* cleanup: */
 		gst_object_unref (adjacent_elem);
 		gst_object_unref (peer);
 	}
 	gst_iterator_free (itr);
+
+	return component;
+}
+
+
+static GooComponent *
+find_goo_component (GstElement *elem, SearchContext *ctx)
+{
+	GooComponent *component = check_for_goo_component (elem, ctx);
+
+	if (component == NULL)
+	{
+		if (GST_IS_BIN (elem))
+		{
+			component = find_goo_component_in_bin (GST_BIN (elem), ctx);
+		}
+	}
+
+	if (component == NULL)
+	{
+		component = find_goo_component_in_elem (elem, ctx);
+	}
 
 	return component;
 }
