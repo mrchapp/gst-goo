@@ -177,7 +177,7 @@ static void pad_added (GstElement *elem, GstPad *pad, PipelineChangeListenerCont
 	}
 	else
 	{
-		g_signal_connect (pad, "linked", pad_linked, ctx);
+		g_signal_connect ((gpointer)pad, "linked", (GCallback)pad_linked, (gpointer)ctx);
 	}
 }
 
@@ -520,7 +520,7 @@ gst_goo_timestamp_omx2gst (GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE *buffer)
 
 	if (GST_CLOCK_TIME_IS_VALID (timestamp) && timestamp != 0)
 	{
-		GST_INFO_OBJECT ("Already had a timestamp: %" GST_TIME_FORMAT, GST_TIME_ARGS (timestamp));
+		GST_INFO ("Already had a timestamp: %" GST_TIME_FORMAT, GST_TIME_ARGS (timestamp));
 		GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
 		return TRUE;
 	}

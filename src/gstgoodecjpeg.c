@@ -1162,7 +1162,7 @@ process_output:
 	if (goo_port_is_tunneled (self->outport))
 	{
 
-		GstBuffer* buffer = gst_ghost_buffer_new ();
+		GstBuffer* buffer = GST_BUFFER (gst_ghost_buffer_new ());
 		/* gst_buffer_set_caps (buffer, GST_PAD_CAPS (self->srcpad)); */
 		gst_pad_push (self->srcpad, buffer);
 

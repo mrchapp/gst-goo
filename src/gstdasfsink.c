@@ -245,7 +245,9 @@ gst_dasf_clock_required (GstDasfSink* self)
 	guint retvalue = 0;
 	GooTiPostProcessor *peer_component = NULL;
 
-	GooTiVideoDecoder *video_decoder = gst_goo_util_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_VIDEO_DECODER);
+	GooTiVideoDecoder *video_decoder = GOO_TI_VIDEO_DECODER (
+			gst_goo_util_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_VIDEO_DECODER)
+		);
 
 	if(video_decoder == NULL)
 		goto done;
@@ -266,15 +268,18 @@ done:
 }
 
 static void
-gst_dasf_enable (GstDasfSink* self)
+gst_dasf_enable (GstElement* elem)
 {
 	GST_INFO ("");
-	GooComponent *component = self->component;
+	GstDasfSink *self = GST_DASF_SINK (elem);
+	GooTiAudioComponent *component = self->component;
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (self);
 
 	if (self->component == NULL)
 	{
-		component = gst_goo_util_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_AUDIO_COMPONENT);
+		component = GOO_TI_AUDIO_COMPONENT (
+				gst_goo_util_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_AUDIO_COMPONENT)
+			);
 
 		if (component == NULL)
 			return;
@@ -316,12 +321,12 @@ gst_dasf_enable (GstDasfSink* self)
 
 		if (priv->clock_source == OMX_CLOCK)
 		{
-			goo_component_set_clock (component, self->clock);
+			goo_component_set_clock (GOO_COMPONENT (component), self->clock);
 			GST_DEBUG_OBJECT (self, "Setting clock to idle");
 			goo_component_set_state_idle (self->clock);
 			GST_DEBUG_OBJECT (self, "Setting clock to executing");
 			goo_component_set_state_executing(self->clock);
-			goo_ti_clock_set_starttime (self->clock, 0);
+			goo_ti_clock_set_starttime (GOO_TI_CLOCK (self->clock), 0);
 		}
 	}
 
@@ -722,7 +727,7 @@ gst_dasf_sink_init (GstDasfSink* self, GstDasfSinkClass* klass)
 
 	self->factory = goo_ti_component_factory_get_instance ();
 
-	gst_goo_util_register_pipeline_change_cb( self, gst_dasf_enable );
+	gst_goo_util_register_pipeline_change_cb (GST_ELEMENT (self), gst_dasf_enable);
 
 //	gst_base_sink_set_async_enabled (self, FALSE);
 

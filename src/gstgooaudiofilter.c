@@ -548,7 +548,7 @@ GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GS
 			 */
 			self->src_caps = NULL;  // ?? do I need to unref after the gst_pad_push()?
 		}
-		gst_pad_push (self->srcpad, ghost_buffer);
+		gst_pad_push (self->srcpad, GST_BUFFER (ghost_buffer));
 	}
 	else
 	{

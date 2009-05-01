@@ -376,7 +376,7 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 		return FALSE;
 	}
 
-	peer_component = gst_goo_util_find_goo_component (self, GOO_TYPE_TI_POST_PROCESSOR);
+	peer_component = gst_goo_util_find_goo_component (GST_ELEMENT (self), GOO_TYPE_TI_POST_PROCESSOR);
 
 	if (G_UNLIKELY (peer_component == NULL))
 	{
@@ -612,7 +612,7 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 			 */
 			self->src_caps = NULL;  // ?? do I need to unref after the gst_pad_push()?
 		}
-		gst_pad_push (self->srcpad, ghost_buffer);
+		gst_pad_push (self->srcpad, GST_BUFFER (ghost_buffer));
 	}
 	else
 	{
