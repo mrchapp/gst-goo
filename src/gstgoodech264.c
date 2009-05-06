@@ -236,8 +236,8 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 				{
 					if(NALU_size_bytes !=0)
 					{
-						m_pDecoderSpecific[pos++] = (sps_len >> 32) & 0xFF;
-						m_pDecoderSpecific[pos++] = (sps_len >> 16) & 0xFF;
+						m_pDecoderSpecific[pos++] =  0x00;
+						m_pDecoderSpecific[pos++] =  0x00;
 						m_pDecoderSpecific[pos++] = (sps_len >> 8) & 0xFF;
 						m_pDecoderSpecific[pos++] = (sps_len >> 0) & 0xFF;
 						GST_DEBUG_OBJECT (self, "[%02x %02x]",
@@ -285,8 +285,8 @@ gst_goo_dech264_codec_data_processing (GstGooVideoFilter *filter, GstBuffer *buf
 				{
 					if(NALU_size_bytes != 0)
 					{
-						m_pDecoderSpecific[pos++] = (pps_len >> 32) & 0xFF;
-						m_pDecoderSpecific[pos++] = (pps_len >> 16) & 0xFF;
+						m_pDecoderSpecific[pos++] =  0x00;
+						m_pDecoderSpecific[pos++] =  0x00;
 						m_pDecoderSpecific[pos++] = (pps_len >> 8) & 0xFF;
 						m_pDecoderSpecific[pos++] = (pps_len >> 0) & 0xFF;
 						GST_DEBUG_OBJECT (self, "[%02x %02x]",
