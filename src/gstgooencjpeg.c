@@ -465,7 +465,7 @@ gst_goo_encjpeg_chain (GstPad* pad, GstBuffer* buffer)
 process_output:
 	if (goo_port_is_tunneled (self->outport))
 	{
-		outbuf = gst_ghost_buffer_new ();
+		outbuf = GST_BUFFER (gst_ghost_buffer_new ());
 		GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_READONLY);
 		GST_BUFFER_DATA (outbuf)       = NULL;
 		GST_BUFFER_SIZE (outbuf)       = 0;

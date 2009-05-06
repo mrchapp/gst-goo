@@ -866,7 +866,7 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 	if (goo_port_is_tunneled (me->captureport))
 	{
 		GST_INFO_OBJECT (me, "port is tunneled, send ghost_buffer");
-		gst_buffer = gst_ghost_buffer_new ();
+		gst_buffer = GST_BUFFER (gst_ghost_buffer_new ());
 		GST_DEBUG_OBJECT (me, "setting caps on ghost buffer");
 		gst_buffer_set_caps (gst_buffer,
 				     GST_PAD_CAPS (GST_BASE_SRC_PAD (self)));
