@@ -80,6 +80,7 @@ struct _GstGooCameraPrivate
 	gboolean capture;
 	gint fps_n, fps_d;
 	gboolean vstab;
+	gint zoom;
 };
 
 static const GstElementDetails details =
@@ -408,6 +409,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 {
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (self);
 	gboolean one_shot = FALSE;
+	GValue* value;
 	GooComponent *component=NULL;
 	GST_DEBUG_OBJECT (self, "");
 
@@ -737,6 +739,9 @@ no_enc:
 		GST_INFO_OBJECT (self, "enabling vstab");
 		g_object_set (self->camera, "vstab", TRUE, NULL);
 	}
+
+	GST_INFO_OBJECT (self, "changing  zoom");
+	g_object_set (self->camera,"zoom", priv->zoom, NULL);
 
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
@@ -1102,8 +1107,7 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 	}
 	break;
 	case PROP_ZOOM:
-		g_object_set_property (G_OBJECT (self->camera),
-				       "zoom", value);
+		priv->zoom = g_value_get_enum (value);
 		break;
 	case PROP_BALANCE:
 		g_object_set_property (G_OBJECT (self->camera),
@@ -1170,8 +1174,7 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 				       "brightness", value);
 		break;
 	case PROP_ZOOM:
-		g_object_get_property (G_OBJECT (self->camera),
-				       "zoom", value);
+		g_object_get_property (G_OBJECT (self->camera),"zoom", value);
 		break;
 	case PROP_BALANCE:
 		g_object_get_property (G_OBJECT (self->camera),
@@ -1403,6 +1406,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->capture = FALSE;
 		priv->fps_n = priv->fps_d = 0;
 		priv->vstab = VSTAB_DEFAULT;
+		priv->zoom = ZOOM_DEFAULT;
 	}
 
 	/* color balance */
