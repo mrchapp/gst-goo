@@ -546,7 +546,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 
 
 	/* thumbnail port configuration */
-#if 1	/* we can disable thumbnail port by the moment */
+#if 0	/* we can disable thumbnail port at the moment */
 	{
 		GooPort* port = goo_component_get_port (self->camera,
 							"output2");
@@ -561,6 +561,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		param->format.video.nFrameWidth  = tn_width;
 		param->format.video.nFrameHeight = tn_height;
 		param->format.video.eColorFormat = color;
+		param->eDomain = OMX_PortDomainVideo;
 
 		g_object_unref (port);
 	}
