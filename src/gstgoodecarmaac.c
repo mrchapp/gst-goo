@@ -410,6 +410,7 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 	GstCaps *copy;
 	static gint sample_rates[] = {96000, 88200, 64000, 48000, 44100, 32000,
 		24000, 22050, 16000, 12000, 11025, 8000};
+	gint32 format;
 
 	peer = gst_pad_get_peer (pad);
 	prev_element = GST_ELEMENT (gst_pad_get_parent (peer));
@@ -422,92 +423,60 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 	str_caps = gst_structure_to_string (structure);
 
 	GST_DEBUG_OBJECT (self, "sink caps: %s", str_caps);
+	OMX_AUDIO_PARAM_AACPROFILETYPE* param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
 
 	if (gst_structure_has_field (structure, "codec_data"))
 	{
 		gint iIndex = 0;
-
 		value = gst_structure_get_value (structure, "codec_data");
 		audio_header = gst_value_get_buffer (value);
 
-		/* Lets see if we can get some information out of this crap */
+		// Lets see if we can get some information out of this crap
 		iIndex = (((GST_BUFFER_DATA (audio_header)[0] & 0x7) << 1) |
 			((GST_BUFFER_DATA (audio_header)[1] & 0x80) >> 7));
 		channels = (GST_BUFFER_DATA (audio_header)[1] & 0x78) >> 3;
 		GST_DEBUG_OBJECT (self, "iIndex %d channels %d", iIndex, channels);
 
-		{
-			OMX_AUDIO_PARAM_AACPROFILETYPE* param = NULL;
-			param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
-
-			param->nSampleRate = sample_rates[iIndex];
-			param->nChannels = channels;
-			param->eAACStreamFormat = OMX_AUDIO_AACStreamFormatRAW;
-		}
-
 		self->channels = channels;
 		self->rate = sample_rates[iIndex];
+
+		format = OMX_AUDIO_AACStreamFormatRAW;
+
 		GST_DEBUG_OBJECT (self, "channels %d rate %d", self->channels,
 			self->rate);
-		/* create reverse caps */
-		copy = gst_caps_new_simple ("audio/x-raw-int",
-					"width", G_TYPE_INT, 16,
-					"depth", G_TYPE_INT, 16,
-					"signed", G_TYPE_BOOLEAN, TRUE,
-					"endianness", G_TYPE_INT, G_BYTE_ORDER,
-				    "channels", G_TYPE_INT, channels,
-				    "rate", G_TYPE_INT, sample_rates[iIndex], NULL);
 	}
 	else
 	{
-		/* get channel count */
+		// get channel count
 		gst_structure_get_int (structure, "channels", &self->channels);
 		gst_structure_get_int (structure, "rate", &self->rate);
-		
+
+		if ((comp_res == 0) || ((self->sbr == FALSE) && (self->parametric_stereo == FALSE)))
 		{
-			OMX_AUDIO_PARAM_AACPROFILETYPE *param = NULL;
-			param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
-
-			param->nChannels = self->channels;
-
-			if ((comp_res == 0) || ((self->sbr == FALSE) && 
-				(self->parametric_stereo == FALSE)))
-			{
-				GST_DEBUG_OBJECT (self, "simple AAC");
-				param->nSampleRate = self->rate;
-				/* create reverse caps */
-				copy = gst_caps_new_simple ("audio/x-raw-int",
-					"width", G_TYPE_INT, 16,
-					"depth", G_TYPE_INT, 16,
-					"signed", G_TYPE_BOOLEAN, TRUE,
-					"endianness", G_TYPE_INT, G_BYTE_ORDER,
-				    "channels", G_TYPE_INT, self->channels,
-				    "rate", G_TYPE_INT, self->rate, NULL);
-			}
-			else
-			{
-				GST_DEBUG_OBJECT (self, "He or eAAC+");
-                if (self->sbr == TRUE)
-                {
-                    self->rate = self->rate;
-                }
-                else
-                {
-				    self->rate = self->rate / 2;
-                }
-				param->nSampleRate = self->rate;
-				param->eAACStreamFormat = OMX_AUDIO_AACStreamFormatMax;
-				/* create reverse caps */
-				copy = gst_caps_new_simple ("audio/x-raw-int",
-					"width", G_TYPE_INT, 16,
-					"depth", G_TYPE_INT, 16,
-					"signed", G_TYPE_BOOLEAN, TRUE,
-					"endianness", G_TYPE_INT, G_BYTE_ORDER,
-				    "channels", G_TYPE_INT, self->channels,
-				    "rate", G_TYPE_INT, self->rate, NULL);
-			}
+			GST_DEBUG_OBJECT (self, "simple AAC");
 		}
+		else
+		{
+			GST_DEBUG_OBJECT (self, "He or eAAC+");
+		}
+		format = OMX_AUDIO_AACStreamFormatMax;
 	}
+
+	param->nSampleRate = self->rate;
+	param->nChannels = self->channels;
+	param->eAACStreamFormat = format;
+
+	if(self->sbr)
+		self->rate *= 2;
+
+	// create reverse caps
+	copy = gst_caps_new_simple ("audio/x-raw-int",
+		"width", G_TYPE_INT, 16,
+		"depth", G_TYPE_INT, 16,
+		"signed", G_TYPE_BOOLEAN, TRUE,
+		"endianness", G_TYPE_INT, G_BYTE_ORDER,
+	    "channels", G_TYPE_INT, self->channels,
+	    "rate", G_TYPE_INT, self->rate, NULL);
 
 	gst_object_unref (prev_element);
 	gst_object_unref (peer);
