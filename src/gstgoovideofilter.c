@@ -936,7 +936,7 @@ gst_goo_video_filter_init (GstGooVideoFilter* self, GstGooVideoFilterClass* klas
 	priv->process_mode = DEFAULT_PROCESS_MODE;
 
 	self->factory = goo_ti_component_factory_get_instance ();
-	self->rate_numerator = 15;
+	self->rate_numerator = 30;
 	self->rate_denominator = 1;
 
 	/* GST */
@@ -1055,6 +1055,14 @@ gst_goo_video_filter_transform_caps (GstGooVideoFilter * self,
 {
 	GstCaps *ret;
 	GstGooVideoFilterClass *klass;
+
+	/** To get the value of framerate parameter and determine the timestamp correctly **/
+	GstStructure *structure;
+	structure = gst_caps_get_structure (caps, 0);
+	const GValue *framerate;
+	framerate = gst_structure_get_value (structure, "framerate");
+	self->rate_numerator = gst_value_get_fraction_numerator (framerate);
+	self->rate_denominator = gst_value_get_fraction_denominator (framerate);
 
 	klass = GST_GOO_VIDEO_FILTER_GET_CLASS (self);
 
