@@ -60,6 +60,7 @@ enum
 	PROP_DISPLAY_POS_Y,
 	PROP_DISPLAY_ROTATION,
 	PROP_DISPLAY_VIDEOPIPELINE,
+	PROP_OUTPUT_DEVICE,
 	PROP_CONTRAST,
 	PROP_BRIGHTNESS,
 	PROP_ZOOM,
@@ -104,7 +105,8 @@ static GstStaticPadTemplate src_factory =
 ResolutionInfo maxres;
 
 #define NUM_OUTPUT_BUFFERS_DEFAULT 4
-#define PREVIEW_DEFAULT		   TRUE
+#define PREVIEW_DEFAULT		       TRUE
+#define OUTPUT_DEFAULT	      	   GOO_TI_POST_PROCESSOR_OUTPUT_LCD
 #define VIDEOPIPELINE_DEFAULT      2
 #define DISPLAY_WIDTH_DEFAULT      176
 #define DISPLAY_HEIGHT_DEFAULT     144
@@ -114,8 +116,8 @@ ResolutionInfo maxres;
 #define BALANCE_DEFAULT            OMX_WhiteBalControlAuto
 #define EXPOSURE_DEFAULT   		   OMX_ExposureControlAuto
 #define ZOOM_DEFAULT               GOO_TI_CAMERA_ZOOM_1X
-#define CONTRAST_DEFAULT	   -70
-#define BRIGHTNESS_DEFAULT	   10
+#define CONTRAST_DEFAULT	       -70
+#define BRIGHTNESS_DEFAULT	       10
 #define DISPLAY_ROTATION_DEFAULT   GOO_TI_POST_PROCESSOR_ROTATION_NONE
 #define VSTAB_DEFAULT              FALSE
 #define CONTRAST_LABEL		   "Contrast"
@@ -152,6 +154,32 @@ gst_goo_camera_rotation_get_type ()
 
 		type = g_enum_register_static ("GstGooCameraRotation",
 					       rotation);
+	}
+
+	return type;
+}
+
+#define GST_GOO_CAMERA_OUTPUT (goo_ti_post_processor_output_get_type ())
+
+GType
+gst_goo_camera_output_get_type ()
+{
+	static GType type = 0;
+
+	if (G_UNLIKELY (type == 0))
+	{
+		static GEnumValue outdev[] = {
+			{ GOO_TI_POST_PROCESSOR_OUTPUT_LCD,
+			  "LCD", "LCD display output" },
+			{ GOO_TI_POST_PROCESSOR_OUTPUT_TV,
+			  "TV", "TV display output" },
+			{ GOO_TI_POST_PROCESSOR_OUTPUT_BOTH,
+			  "TV & LCD", "Simultaneous display output" },
+			{ 0, NULL, NULL },
+		};
+
+		type = g_enum_register_static
+			("GstGooCameraOutput", outdev);
 	}
 
 	return type;
@@ -1095,6 +1123,10 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 	case PROP_DISPLAY_VIDEOPIPELINE:
 		priv->video_pipeline = g_value_get_uint (value);
 		break;
+	case PROP_OUTPUT_DEVICE:
+		g_object_set_property (G_OBJECT (self->postproc),
+				       "out-device", value);
+		break;
 	case PROP_CONTRAST:
 	{
 		gint contrast = g_value_get_int (value);
@@ -1169,6 +1201,10 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 	case PROP_CONTRAST:
 		g_object_get_property (G_OBJECT (self->camera),
 				       "contrast", value);
+		break;
+	case PROP_OUTPUT_DEVICE:
+		g_object_get_property (G_OBJECT (self->postproc),
+				       "out-device", value);
 		break;
 	case PROP_BRIGHTNESS:
 		g_object_get_property (G_OBJECT (self->camera),
@@ -1332,6 +1368,12 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 	g_object_class_install_property (g_klass,
 					 PROP_DISPLAY_ROTATION, spec);
 
+	spec = g_param_spec_enum ("outdev", "Output device",
+				   "The output device",
+				   GST_GOO_CAMERA_OUTPUT,
+				   OUTPUT_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_OUTPUT_DEVICE, spec);
+
 	spec = g_param_spec_int ("contrast", "Contrast",
 				 "Set the contrast value",
 				 -100, 100, CONTRAST_DEFAULT,
@@ -1402,7 +1444,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->fps_n = priv->fps_d = 0;
 		priv->preview = PREVIEW_DEFAULT;
 		priv->video_pipeline = VIDEOPIPELINE_DEFAULT;
-		priv->display_width =
+		priv->display_width = 0;
 		priv->display_height = 0;
 		priv->capture = FALSE;
 		priv->fps_n = priv->fps_d = 0;
