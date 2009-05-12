@@ -66,7 +66,8 @@ enum
 	PROP_ZOOM,
 	PROP_BALANCE,
 	PROP_EXPOSURE,
-	PROP_VSTAB
+	PROP_VSTAB,
+	PROP_FOCUS
 };
 
 #define GST_GOO_CAMERA_GET_PRIVATE(obj) (GST_GOO_CAMERA (obj)->priv)
@@ -82,6 +83,7 @@ struct _GstGooCameraPrivate
 	gint fps_n, fps_d;
 	gboolean vstab;
 	gint zoom;
+	gboolean autofocus;
 };
 
 static const GstElementDetails details =
@@ -120,6 +122,7 @@ ResolutionInfo maxres;
 #define BRIGHTNESS_DEFAULT	       10
 #define DISPLAY_ROTATION_DEFAULT   GOO_TI_POST_PROCESSOR_ROTATION_NONE
 #define VSTAB_DEFAULT              FALSE
+#define FOCUS_DEFAULT              FALSE
 #define CONTRAST_LABEL		   "Contrast"
 #define BRIGHTHNESS_LABEL	   "Brightness"
 
@@ -772,6 +775,12 @@ no_enc:
 	GST_INFO_OBJECT (self, "changing  zoom");
 	g_object_set (self->camera,"zoom", priv->zoom, NULL);
 
+	if (priv->autofocus == TRUE)
+	{
+		GST_INFO_OBJECT (self, "enabling autofocus");
+		g_object_set (self->camera,"focus", priv->autofocus, NULL);
+	}
+
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
 
@@ -1150,6 +1159,9 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 		g_object_set_property (G_OBJECT (self->camera),
 				       "exposure", value);
 		break;
+	case PROP_FOCUS:
+		priv->autofocus = g_value_get_boolean (value);
+		break;
 	case PROP_VSTAB:
 		priv->vstab = g_value_get_boolean (value);
 		break;
@@ -1220,6 +1232,9 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 	case PROP_EXPOSURE:
 		g_object_get_property (G_OBJECT (self->camera),
 				       "exposure", value);
+		break;
+	case PROP_FOCUS:
+		g_value_set_boolean (value, priv->autofocus);
 		break;
 	case PROP_VSTAB:
 		g_value_set_boolean (value, priv->vstab);
@@ -1412,6 +1427,12 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 				  EXPOSURE_DEFAULT,  G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_EXPOSURE, spec);
 
+	spec = g_param_spec_boolean ("focus",
+				  "Focus control",
+				  "Set/Get the autofocus mode ",
+				  FOCUS_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_FOCUS, spec);
+
 	spec = g_param_spec_boolean ("vstab", "Video stabilization",
 				     "Enable the video stabilization",
 				     VSTAB_DEFAULT,
@@ -1449,6 +1470,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->capture = FALSE;
 		priv->fps_n = priv->fps_d = 0;
 		priv->vstab = VSTAB_DEFAULT;
+		priv->autofocus = FOCUS_DEFAULT;
 		priv->zoom = ZOOM_DEFAULT;
 	}
 
