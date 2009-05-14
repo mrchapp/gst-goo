@@ -533,6 +533,7 @@ gst_goo_encaac_chain (GstPad* pad, GstBuffer* buffer)
 done:
 	GST_DEBUG_OBJECT (self, "");
 	gst_object_unref (self);
+	gst_buffer_unref (buffer);
 
 	return result;
 
@@ -541,7 +542,6 @@ not_negotiated:
 	{
 		GST_ELEMENT_ERROR (self, CORE, NEGOTIATION, (NULL),
 				   ("failed to negotiate MPEG/AAC format with next element"));
-		gst_buffer_unref (buffer);
 		result = GST_FLOW_ERROR;
 		goto done;
 	}

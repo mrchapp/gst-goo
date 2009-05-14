@@ -536,7 +536,7 @@ process_output:
 		gst_buffer_set_caps (outbuf, GST_PAD_CAPS (self->srcpad));
 		g_signal_emit (G_OBJECT (self),
 			       gst_goo_encjpeg_signals[FRAME_ENCODED], 0);
-	
+
 		ret = gst_pad_push (self->srcpad, outbuf);
 		if (omx_buffer->nFlags & OMX_BUFFERFLAG_EOS ||
 		   	goo_port_is_eos (self->outport))
@@ -556,11 +556,11 @@ process_output:
 	}
 
 fail:
-	gst_buffer_unref (buffer);
 	gst_goo_adapter_clear (adapter);
 
 done:
 	gst_object_unref (self);
+	gst_buffer_unref (buffer);
 	return ret;
 
 }

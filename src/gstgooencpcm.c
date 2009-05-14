@@ -378,6 +378,8 @@ gst_goo_encpcm_chain (GstPad* pad, GstBuffer* buffer)
 	}
 
 	GST_DEBUG_OBJECT (self, "");
+	gst_object_unref (self);
+	gst_buffer_unref (buffer);
 	return ret;
 
 	/* ERRORS */

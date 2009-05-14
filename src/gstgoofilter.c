@@ -408,10 +408,10 @@ gst_goo_filter_chain (GstPad* pad, GstBuffer* buffer)
 	goto done;
 
 fail:
-	gst_buffer_unref (buffer);
 	gst_goo_adapter_clear (adapter);
 done:
 	gst_object_unref (self);
+	gst_buffer_unref (buffer);
 	return ret;
 }
 

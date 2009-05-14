@@ -366,6 +366,7 @@ gst_goo_encgsmhr_chain (GstPad* pad, GstBuffer* buffer)
 done:
 	GST_DEBUG_OBJECT (self, "");
 	gst_object_unref (self);
+	gst_buffer_unref (buffer);
 	return ret;
 
 	/* ERRORS */
@@ -373,7 +374,6 @@ not_negotiated:
 	{
 		GST_ELEMENT_ERROR (self, CORE, NEGOTIATION, (NULL),
 				   ("format wasn't negotiated before chain function"));
-		gst_buffer_unref (buffer);
 		ret = GST_FLOW_NOT_NEGOTIATED;
 		goto done;
 	}
