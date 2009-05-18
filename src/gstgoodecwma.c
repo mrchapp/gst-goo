@@ -419,8 +419,9 @@ gst_goo_decwma_extra_buffer_processing(GstGooAudioFilter *filter, GstBuffer *buf
 			buffer = gst_buffer_join (header_buffer, buffer);
 			self->parsed_header = TRUE;
 		}
-
+	/* There are discontinuities in the audio if we preserve the timestamps
 		GST_BUFFER_TIMESTAMP (buffer) = GST_BUFFER_TIMESTAMP (orig_buffer);
+	*/
 	}
 
 	#if 0
