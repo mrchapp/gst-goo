@@ -155,10 +155,18 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	g_assert (self != NULL);
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
-	GstBuffer* gst_buffer = gst_goo_buffer_new ();
+	GstBuffer* gst_buffer = gst_buffer_new_and_alloc (buffer->nFilledLen);
 	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
 
-	gst_goo_buffer_set_data (gst_buffer, component, buffer);
+	/* evil memcpy().. we need to do this because we need to release the
+	 * buffer back to the OMX component ASAP, to avoid blocking the OMX
+	 * component from blocking the next frame of data... there could be
+	 * a gstqueue downstream of us (for example, in an AV record scenario)
+	 * so it could be quite some time before the buffer is free again..
+	 */
+	memcpy (GST_BUFFER_DATA (gst_buffer), buffer->pBuffer + buffer->nOffset, buffer->nFilledLen);
+	goo_component_release_buffer (component, buffer);
+
 	priv->outcount++;
 
 	gst_goo_video_filter_timestamp_buffer (self, gst_buffer, buffer);
@@ -176,7 +184,6 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	{
 			GST_INFO ( "sending buffer with EOS flag");
 			buffer->nFlags |= OMX_BUFFERFLAG_EOS;
-			goo_component_release_buffer (self->component, buffer);
 
 			if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
 			{
