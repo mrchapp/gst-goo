@@ -62,6 +62,19 @@ static GstStaticPadTemplate sink_factory =
 											"systemstream = (boolean) FALSE,"
 											"width = (int) [16, 4096], "
 											"height = (int) [16, 4096], "
+											"framerate = (GstFraction) [0/1, 60/1]; "
+							"video/x-divx, "
+											"divxversion = (int) [4, 5], "
+											"width = (int) [16, 4096], "
+											"height = (int) [16, 4096], "
+											"framerate = (GstFraction) [0/1, 60/1]; "
+							"video/x-xvid, "
+											"width = (int) [16, 4096], "
+											"height = (int) [16, 4096], "
+											"framerate = (GstFraction) [0/1, 60/1]; "
+							"video/x-3ivx, "
+											"width = (int) [16, 4096], "
+											"height = (int) [16, 4096], "
 											"framerate = (GstFraction) [0/1, 60/1]"));
 
 
