@@ -772,7 +772,6 @@ gst_goo_video_filter_dispose (GObject* object)
 			  G_OBJECT (me->component)->ref_count);
 
 		GST_DEBUG ("unrefing component");
-		G_OBJECT(me->component)->ref_count = 1;
                 g_object_unref (me->component);
         }
 
