@@ -75,7 +75,7 @@ static GstStaticPadTemplate sink_factory =
 							"video/x-3ivx, "
 											"width = (int) [16, 4096], "
 											"height = (int) [16, 4096], "
-											"framerate = (GstFraction) [0/1, 60/1]"));
+											"framerate = (GstFraction) [0/1, 120/1]"));
 
 
 static void

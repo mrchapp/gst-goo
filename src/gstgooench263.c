@@ -65,7 +65,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
                 GST_STATIC_CAPS ("video/x-h263, "
 				"width = (int) [16, 4096], "
 				"height = (int) [16, 4096], "
-				"framerate = (GstFraction) [1/1, 60/1]"));
+				"framerate = (GstFraction) [1/1, 120/1]"));
 
 
 static void

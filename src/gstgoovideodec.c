@@ -64,7 +64,7 @@ static GstStaticPadTemplate src_factory =
 			"format = (fourcc) { UYVY }, "  // Note: I420 seems to produce bad output, so I'm removing it for now so we don't accidentially negotiate that format --Rob
 			"width = (int) [16, 4096], "
 			"height = (int) [16, 4096], "
-			"framerate = (GstFraction) [1/1, 60/1]"));
+			"framerate = (GstFraction) [1/1, 120/1]"));
 
 
 static void
