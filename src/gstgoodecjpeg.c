@@ -98,6 +98,7 @@ struct _GstGooDecJpegPrivate
 	gint count;
 };
 
+
 #define SCALE_DEFAULT GOO_TI_JPEGDEC_SCALE_NONE
 #define SLICING_DEFAULT 0
 #define MIN_WIDTH  16
@@ -976,7 +977,8 @@ peer_no_accept:
 static void
 omx_sync (GstGooDecJpeg* self)
 {
-	GstGooDecJpegPrivate* priv = GST_GOO_DECJPEG_GET_PRIVATE (self);
+	GstGooDecJpegPrivate *priv = GST_GOO_DECJPEG_GET_PRIVATE (self);
+
 
 	GST_DEBUG_OBJECT (self, "configuring params");
 	OMX_PARAM_PORTDEFINITIONTYPE* param;
@@ -1002,7 +1004,9 @@ omx_sync (GstGooDecJpeg* self)
 	GOO_TI_JPEGDEC_GET_SUBREGION_DECODE (self->component)->nXLength = priv->subregion_width;
 	GOO_TI_JPEGDEC_GET_SUBREGION_DECODE (self->component)->nYLength = priv->subregion_height;
 
-
+	/*Max resolution*/
+	GOO_TI_JPEGDEC_GET_MAXRES_DECODE (self->component)->nWidth = priv->width;
+	GOO_TI_JPEGDEC_GET_MAXRES_DECODE (self->component)->nHeight = priv->height;
 	return;
 }
 
