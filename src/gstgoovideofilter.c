@@ -316,6 +316,17 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 			}
 			else
 			{
+				/* need to make sure camera knows we are in EOS!  another
+				 * big hack for OMX tunnels.  The issue is that gstgoocamera
+				 * never finds out when it's src pad loop function finishes,
+				 * and since the actual thread pushing the buffers forward
+				 * down the pipe is in OMX camera, it needs to move OMX
+				 * camera out of executing state.. which it can't do unless
+				 * we notify it.
+				 */
+				gst_element_send_event (GST_ELEMENT (self),
+						gst_goo_event_new_reverse_eos() );
+
 				ret = TRUE;
 			}
 			break;

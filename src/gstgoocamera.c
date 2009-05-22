@@ -348,6 +348,39 @@ gst_goo_camera_stop (GstBaseSrc* self)
 	return TRUE;
 }
 
+
+static gboolean
+gst_goo_camera_src_event (GstPad *pad, GstEvent *event)
+{
+	GST_INFO ("%s", GST_EVENT_TYPE_NAME (event));
+
+	GstGooCamera* self = GST_GOO_CAMERA (gst_pad_get_parent (pad));
+
+	gboolean ret;
+
+	switch (GST_EVENT_TYPE (event))
+	{
+		case GST_EVENT_CUSTOM_UPSTREAM:
+			if (gst_goo_event_is_reverse_eos (event) && goo_port_is_tunneled (self->captureport))
+			{
+				/* in case of a tunnel, we never find out about the EOS.. so
+				 * the custom-upstream event from the videoencoder is a hack
+				 * to ensure OMX camera gets stopped..
+				 */
+				gst_goo_camera_stop (GST_BASE_SRC (self));
+			}
+			ret = TRUE;
+			break;
+		default:
+			ret = gst_pad_event_default (pad, event);
+			break;
+	}
+
+	gst_object_unref (self);
+	return ret;
+}
+
+
 /* this function is a bit of a last resort */
 static void
 gst_goo_camera_fixate (GstBaseSrc* self, GstCaps* caps)
@@ -1513,6 +1546,9 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 	/* gst stuff */
 	gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
 	gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
+
+	gst_pad_set_event_function (GST_BASE_SRC (self)->srcpad,
+		GST_DEBUG_FUNCPTR (gst_goo_camera_src_event));
 
 	return;
 }
