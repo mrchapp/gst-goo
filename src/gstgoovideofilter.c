@@ -165,7 +165,6 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	 * so it could be quite some time before the buffer is free again..
 	 */
 	memcpy (GST_BUFFER_DATA (gst_buffer), buffer->pBuffer + buffer->nOffset, buffer->nFilledLen);
-	goo_component_release_buffer (component, buffer);
 
 	priv->outcount++;
 
@@ -182,28 +181,41 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 
 	if (inport_tunneled && (priv->outcount > priv->incount) )
 	{
-			GST_INFO ( "sending buffer with EOS flag");
-			buffer->nFlags |= OMX_BUFFERFLAG_EOS;
+		GST_INFO ( "sending buffer with EOS flag");
+		buffer->nFlags |= OMX_BUFFERFLAG_EOS;
 
-			if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
-			{
-				GST_INFO ("EOS flag in output buffer (%d)",
-			  		buffer->nFilledLen);
-				goo_component_set_done (self->component);
-				GstEvent*   event = gst_event_new_eos();
-				gst_pad_push_event (self->srcpad, event);
-			}
+		if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
+		{
+			GST_INFO ("EOS flag in output buffer (%d)",
+		  		buffer->nFilledLen);
+			goo_component_set_done (self->component);
+			GstEvent*   event = gst_event_new_eos();
+			gst_pad_push_event (self->srcpad, event);
+			gst_buffer_unref (gst_buffer);
+		}
+
+		goo_component_release_buffer (component, buffer);
 	}
 	else
 	{
-		gst_pad_push (self->srcpad, gst_buffer);
+		gboolean is_done = FALSE;
+
 		if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
 		{
 			GST_INFO ("EOS flag found in output buffer (%d)",
 			  	buffer->nFilledLen);
+			is_done = TRUE;
+		}
+
+		goo_component_release_buffer (component, buffer);
+		gst_pad_push (self->srcpad, gst_buffer);
+
+		if(is_done)
+		{
 			goo_component_set_done (self->component);
 		}
 	}
+
 	return;
 }
 
