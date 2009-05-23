@@ -260,7 +260,7 @@ gst_dasf_clock_required (GstDasfSink* self)
 	if (peer_component == NULL)
 		goto done;
 
-	self->pp = peer_component;
+	self->pp = peer_component;   // TODO we should probably ref and unref pp!!
 	retvalue = 1;
 
 done:
@@ -322,8 +322,18 @@ gst_dasf_enable (GstElement* elem)
 		if (priv->clock_source == OMX_CLOCK)
 		{
 			goo_component_set_clock (GOO_COMPONENT (component), self->clock);
+		}
+	}
+
+	if (self->clock)
+	{
+		if (goo_component_get_state(self->clock) == OMX_StateLoaded)
+		{
 			GST_DEBUG_OBJECT (self, "Setting clock to idle");
 			goo_component_set_state_idle (self->clock);
+		}
+		if (goo_component_get_state(self->clock) == OMX_StateIdle)
+		{
 			GST_DEBUG_OBJECT (self, "Setting clock to executing");
 			goo_component_set_state_executing(self->clock);
 			goo_ti_clock_set_starttime (GOO_TI_CLOCK (self->clock), 0);
@@ -445,6 +455,7 @@ GST_BOILERPLATE_FULL (GstDasfSink, gst_dasf_sink, GstBaseSink,
 static GstStateChangeReturn
 gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 {
+	GstDasfSink *self = GST_DASF_SINK (element);
 	GstDasfSinkPrivate* priv = GST_DASF_SINK_GET_PRIVATE (element);
 	GST_LOG ("transition=%d", transition);
 
@@ -452,15 +463,28 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 	{
 //	case GST_STATE_CHANGE_NULL_TO_READY:
 //	case GST_STATE_CHANGE_READY_TO_PAUSED:
-    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		/* acquire "virtual" ringbuffer */
 		priv->ring_buffer_acquired = TRUE;
-    	break;
-    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+		break;
+	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
 	case GST_STATE_CHANGE_READY_TO_NULL:
 		/* release "virtual" ringbuffer */
 		priv->ring_buffer_acquired = FALSE;
+		if (self->clock)
+		{
+			if (goo_component_get_state(self->clock) == OMX_StateExecuting)
+			{
+				GST_DEBUG_OBJECT (self, "Setting clock to idle");
+				goo_component_set_state_idle (self->clock);
+			}
+			if (goo_component_get_state(self->clock) == OMX_StateIdle)
+			{
+				GST_DEBUG_OBJECT (self, "Setting clock to loaded");
+				goo_component_set_state_loaded(self->clock);
+			}
+		}
 		break;
 	default:
 		break;
