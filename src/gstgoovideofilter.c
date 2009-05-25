@@ -179,19 +179,29 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 		goo_semaphore_up (priv->input_sem);
 	}
 
+	GST_DEBUG_OBJECT (self, "eos=%d, outcount=%d, incount=%d",
+			(buffer->nFlags & OMX_BUFFERFLAG_EOS),
+			priv->outcount,
+			priv->incount
+		);
+
 	if (inport_tunneled && (priv->outcount > priv->incount) )
 	{
-		GST_INFO ( "sending buffer with EOS flag");
+		GST_INFO ("sending buffer with EOS flag");
 		buffer->nFlags |= OMX_BUFFERFLAG_EOS;
+
+		/* since we aren't going to send this buffer, we need to at
+		 * least unref it.. but maybe we should send it in addition
+		 * to the EOS event if it has any data in it?
+		 */
+		gst_buffer_unref (gst_buffer);
 
 		if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
 		{
 			GST_INFO ("EOS flag in output buffer (%d)",
 		  		buffer->nFilledLen);
 			goo_component_set_done (self->component);
-			GstEvent*   event = gst_event_new_eos();
-			gst_pad_push_event (self->srcpad, event);
-			gst_buffer_unref (gst_buffer);
+			gst_pad_push_event (self->srcpad, gst_event_new_eos());
 		}
 
 		goo_component_release_buffer (component, buffer);
@@ -338,6 +348,16 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 				 */
 				gst_element_send_event (GST_ELEMENT (self),
 						gst_goo_event_new_reverse_eos() );
+
+				/* XXX OMX camera does not seem to send us a buffer with the
+				 * EOS flag set.. so for now this hack ensures the sink gets
+				 * an EOS event.  It's possible that if OMX camera is fixed,
+				 * that this will cause the sink to get two EOS events.. I'm
+				 * not sure if that will cause anything bad.  But when OMX
+				 * camera is fixed, this next line should be removed (and
+				 * probably replaced with an unref(event))
+				 */
+				gst_pad_push_event (self->srcpad, event);
 
 				ret = TRUE;
 			}
