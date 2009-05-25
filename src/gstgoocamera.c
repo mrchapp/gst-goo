@@ -331,6 +331,14 @@ gst_goo_camera_stop (GstBaseSrc* self)
 	GstGooCamera* me = GST_GOO_CAMERA (self);
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (self);
 
+	/* this function could get called twice (see gst_goo_camera_src_event())
+	 * so make sure we haven't already moved me->camera back to loaded state:
+	 */
+	if( goo_component_get_state (me->camera) == OMX_StateLoaded )
+	{
+		return TRUE;
+	}
+
 	GST_DEBUG_OBJECT (self, "");
 
 	if (priv->capture == TRUE)
