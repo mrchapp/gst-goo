@@ -713,7 +713,8 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 		/* goo_component_set_state_paused (self->component); */
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
-		if (!(goo_port_is_tunneled (self->inport)))
+		if ((goo_component_get_state (self->component) == OMX_StateExecuting) &&
+				!(goo_port_is_tunneled (self->inport)))
 		{
 		GST_INFO ("going to idle");
 		goo_component_set_state_idle (self->component);
