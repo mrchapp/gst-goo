@@ -325,6 +325,7 @@ gst_goo_camera_start (GstBaseSrc* self)
 	return TRUE;
 }
 
+
 static gboolean
 gst_goo_camera_stop (GstBaseSrc* self)
 {
@@ -343,7 +344,7 @@ gst_goo_camera_stop (GstBaseSrc* self)
 
 	if (priv->capture == TRUE)
 	{
-		GST_INFO_OBJECT (self, "Capture off");
+		GST_INFO_OBJECT (self, "Stop");
 		g_object_set (me->camera, "capture", FALSE, NULL);
 	}
 
@@ -1354,12 +1355,54 @@ gst_goo_camera_finalize (GObject *object)
 	G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
+static GstStateChangeReturn
+gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
+{
+	GST_LOG ("transition=%d", transition);
+
+	GstGooCamera* self = GST_GOO_CAMERA (element);
+	GstStateChangeReturn result;
+	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (self);
+
+	result = GST_ELEMENT_CLASS (parent_class)->change_state (element,
+								 transition);
+	switch (transition)
+	{
+	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+		if (priv->capture == FALSE)
+		{
+			GST_INFO_OBJECT (self, "Resume");
+			g_object_set (self->camera, "capture", TRUE, NULL);
+			priv->capture = !priv->capture;
+		}
+		break;
+	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+		if (priv->capture == TRUE)
+		{
+			GST_INFO_OBJECT (self, "Pause");
+			g_object_set (self->camera, "capture", FALSE, NULL);
+			priv->capture = !priv->capture;
+		}
+		break;
+	case GST_STATE_CHANGE_PAUSED_TO_READY:
+		{
+			gst_goo_camera_stop (GST_BASE_SRC(self));
+		}
+		break;
+	default:
+		break;
+	}
+	return result;
+}
+
+
 static void
 gst_goo_camera_class_init (GstGooCameraClass* klass)
 {
 	GObjectClass* g_klass;
 	GstPushSrcClass* p_klass;
 	GstBaseSrcClass* b_klass;
+	GstElementClass* gst_klass;
 	GParamSpec* spec;
 
 	{
@@ -1370,11 +1413,8 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 
 	g_klass = G_OBJECT_CLASS (klass);
 	g_type_class_add_private (klass, sizeof (GstGooCameraPrivate));
-
-	g_klass->set_property =
-		GST_DEBUG_FUNCPTR (gst_goo_camera_set_property);
-	g_klass->get_property =
-		GST_DEBUG_FUNCPTR (gst_goo_camera_get_property);
+	g_klass->set_property =	GST_DEBUG_FUNCPTR (gst_goo_camera_set_property);
+	g_klass->get_property =	GST_DEBUG_FUNCPTR (gst_goo_camera_get_property);
 	g_klass->dispose = GST_DEBUG_FUNCPTR (gst_goo_camera_dispose);
 	g_klass->finalize = GST_DEBUG_FUNCPTR (gst_goo_camera_finalize);
 
@@ -1485,10 +1525,13 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 	p_klass->create = GST_DEBUG_FUNCPTR (gst_goo_camera_create);
 	b_klass = GST_BASE_SRC_CLASS (klass);
 	b_klass->start    = GST_DEBUG_FUNCPTR (gst_goo_camera_start);
-	b_klass->stop     = GST_DEBUG_FUNCPTR (gst_goo_camera_stop);
 	b_klass->set_caps = GST_DEBUG_FUNCPTR (gst_goo_camera_setcaps);
 	b_klass->query    = GST_DEBUG_FUNCPTR (gst_goo_camera_query);
 	b_klass->fixate   = GST_DEBUG_FUNCPTR (gst_goo_camera_fixate);
+
+	/* GST */
+	gst_klass = GST_ELEMENT_CLASS (klass);
+	gst_klass->change_state = GST_DEBUG_FUNCPTR (gst_goo_camera_change_state);
 
 	return;
 }

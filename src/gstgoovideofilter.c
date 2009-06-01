@@ -106,6 +106,7 @@ struct _GstGooVideoFilterPrivate
 
 	GstSegment segment;
 	gboolean flag_start;
+	gboolean flag_pause;
 };
 
 #define NUM_INPUT_BUFFERS_DEFAULT 4
@@ -185,7 +186,7 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 			priv->incount
 		);
 
-	if (inport_tunneled && (priv->outcount > priv->incount) )
+	if (inport_tunneled && (priv->outcount > priv->incount) && (!priv->flag_pause) )
 	{
 		GST_INFO ("sending buffer with EOS flag");
 		buffer->nFlags |= OMX_BUFFERFLAG_EOS;
@@ -311,6 +312,7 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 			priv->incount = 0;
 			priv->outcount = 0;
 			priv->flag_start = TRUE;
+			priv->flag_pause = FALSE;
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_EOS:
@@ -704,6 +706,7 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 		/* if we have tunneled input, we need to use the input_sem... so
 		 * ensure that it is allocated:
 		 */
+		priv->flag_pause = FALSE;
 		if (goo_port_is_tunneled (self->inport) && !priv->input_sem)
 		{
 			priv->input_sem = goo_semaphore_new (0);
@@ -711,8 +714,10 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 		break;
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		/* goo_component_set_state_paused (self->component); */
+		priv->flag_pause = TRUE;
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
+		priv->flag_pause = FALSE;
 		if ((goo_component_get_state (self->component) == OMX_StateExecuting) &&
 				!(goo_port_is_tunneled (self->inport)))
 		{
