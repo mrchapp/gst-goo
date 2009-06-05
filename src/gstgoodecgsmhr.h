@@ -23,9 +23,9 @@
 #ifndef  __GST_GOO_DECGSMHR_H__
 #define  __GST_GOO_DECGSMHR_H__
 
-#include <gst/gst.h>
 #include <goo-ti-component-factory.h>
-#include "gstgooadapter.h"
+#include <gst/base/gstadapter.h>
+#include "gstgooaudiofilter.h"
 
 G_BEGIN_DECLS
 
@@ -44,32 +44,16 @@ G_BEGIN_DECLS
 
 typedef struct _GstGooDecGsmHr GstGooDecGsmHr;
 typedef struct _GstGooDecGsmHrClass GstGooDecGsmHrClass;
+typedef struct _GstGooDecGsmHrPrivate GstGooDecGsmHrPrivate;
 
 struct _GstGooDecGsmHr
 {
-	GstElement element;
-
-	GstPad* sinkpad;
-	GstPad* srcpad;
-	guint64 ts;
-
-	GstSegment segment;
-	GstGooAdapter* adapter;
-
-	GooComponentFactory* factory;
-	GooComponent* component;
-	GooPort* inport;
-	GooPort* outport;
-
-	gint channels;
-	gint rate;
-	gint duration;
-	guint outcount;
+    GstGooAudioFilter goofilter;
 };
 
 struct _GstGooDecGsmHrClass
 {
-	GstElementClass parent_class;
+    GstGooAudioFilterClass parent_class;
 };
 
 GType gst_goo_decgsmhr_get_type (void);
