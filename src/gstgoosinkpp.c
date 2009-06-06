@@ -180,6 +180,8 @@ gst_goo_sinkpp_sync (GstGooSinkPP *self)
 	GST_INFO_OBJECT (self, "going to executing");
 	goo_component_set_state_executing (tunnel_head);
 
+	g_object_unref (tunnel_head);
+
 	return TRUE;
 }
 
@@ -686,17 +688,21 @@ gst_goo_sinkpp_dispose (GObject* object)
 
 	if (G_LIKELY (me->component))
 	{
+		GST_DEBUG ("GOO component = %d",
+				G_OBJECT (me->component)->ref_count);
+
 		GST_DEBUG ("unrefing component");
-		G_OBJECT(me->component)->ref_count = 1;
 		g_object_unref (me->component);
 	}
 
 	if (G_LIKELY (me->factory))
 	{
+		GST_DEBUG ("GOO factory = %d",
+				G_OBJECT (me->factory)->ref_count);
+
 		GST_DEBUG ("unrefing factory");
 		g_object_unref (me->factory);
 	}
-
 }
 
 static void

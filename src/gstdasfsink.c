@@ -608,12 +608,19 @@ gst_dasf_sink_dispose (GObject* object)
 
 	if (G_LIKELY (self->factory))
 	{
+		GST_DEBUG ("GOO factory = %d",
+				G_OBJECT (self->factory)->ref_count);
+
 		GST_DEBUG ("unrefing factory");
 		g_object_unref (self->factory);
 	}
 
 	if (self->component)
 	{
+		GST_DEBUG ("GOO component = %d",
+				G_OBJECT (self->component)->ref_count);
+
+		GST_DEBUG ("unrefing component");
 		g_object_unref (self->component);
 	}
 }

@@ -788,7 +788,7 @@ gst_goo_video_filter_dispose (GObject* object)
 
 	if (G_LIKELY (me->component))
 	{
-		GST_DEBUG ("Component refcount = %d",
+		GST_DEBUG ("GOO component = %d",
 				G_OBJECT (me->component)->ref_count);
 
 		GST_DEBUG ("unrefing component");
@@ -797,7 +797,7 @@ gst_goo_video_filter_dispose (GObject* object)
 
 	if (G_LIKELY (me->factory))
 	{
-		GST_DEBUG ("Factory refcount = %d",
+		GST_DEBUG ("GOO factory = %d",
 				G_OBJECT (me->factory)->ref_count);
 
 		GST_DEBUG ("unrefing factory");
