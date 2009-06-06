@@ -164,7 +164,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_goo_encarmaac_debug);
 GST_DEBUG_CATEGORY_INIT (gst_goo_encarmaac_debug, "gooencarmaac", 0, "OpenMAX ARM-Advanced Audio Coding encoder element")
 
 GST_BOILERPLATE_FULL (GstGooEncArmAac, gst_goo_encarmaac,
-		      GstElement, GST_TYPE_ELEMENT, _do_init)
+		      GstElement, GST_TYPE_ELEMENT, _do_init);
 
 static GstFlowReturn
 process_output_buffer (GstGooEncArmAac* self, OMX_BUFFERHEADERTYPE* buffer)

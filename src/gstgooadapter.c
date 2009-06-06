@@ -89,8 +89,8 @@ gst_goo_adapter_new (void)
 void
 gst_goo_adapter_clear (GstGooAdapter * adapter)
 {
-GST_DEBUG ("");
   g_return_if_fail (GST_IS_GOO_ADAPTER (adapter));
+GST_DEBUG ("clearing %d bytes", adapter->size);
 
   g_slist_foreach (adapter->buflist, (GFunc) gst_mini_object_unref, NULL);
   g_slist_free (adapter->buflist);
@@ -107,7 +107,7 @@ gst_goo_adapter_push (GstGooAdapter * adapter, GstBuffer * buf)
   g_return_if_fail (GST_IS_GOO_ADAPTER (adapter));
   g_return_if_fail (GST_IS_BUFFER (buf));
 
-GST_DEBUG ("0x%08x", buf);
+GST_DEBUG ("0x%08x (size=%d)", buf, GST_BUFFER_SIZE (buf));
 
   adapter->size += GST_BUFFER_SIZE (buf);
 

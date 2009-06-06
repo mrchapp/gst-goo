@@ -64,9 +64,21 @@ struct _GstGooEncAac
 	GooComponent* component;
 	GooPort* inport;
 	GooPort* outport;
-
 	guint outcount;
-	gint duration;
+
+	/**
+	 * Number of bytes sent to OMX since receiving a encoded buffer back.
+	 * Since we know the bitrate, and other parameters, we can convert
+	 * between bytes and time for raw samples.
+	 *
+	 * To generate back the timestamp on the encoded buffer, we assume
+	 * that it contains data from all the raw buffers sent down to OMX.
+	 * However this won't always be true.. so there might be some jitter
+	 * in this algorithm.
+	 */
+	guint bytes_pending;
+	guint ns_per_byte;
+
 };
 
 struct _GstGooEncAacClass

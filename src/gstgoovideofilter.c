@@ -762,50 +762,49 @@ gst_goo_video_filter_get_property (GObject* object, guint prop_id,
 static void
 gst_goo_video_filter_dispose (GObject* object)
 {
-        GstGooVideoFilter* me;
+	GstGooVideoFilter* me;
 
-        G_OBJECT_CLASS (parent_class)->dispose (object);
+	G_OBJECT_CLASS (parent_class)->dispose (object);
 
-        me = GST_GOO_VIDEO_FILTER (object);
+	me = GST_GOO_VIDEO_FILTER (object);
 
-		if (G_LIKELY (me->adapter))
-		{
-			GST_DEBUG ("unrefing adapter");
-			g_object_unref (me->adapter);
-		}
+	if (G_LIKELY (me->adapter))
+	{
+		GST_DEBUG ("unrefing adapter");
+		g_object_unref (me->adapter);
+	}
 
-        if (G_LIKELY (me->inport))
-        {
+	if (G_LIKELY (me->inport))
+	{
 		GST_DEBUG ("unrefing inport");
-                g_object_unref (me->inport);
-        }
+		g_object_unref (me->inport);
+	}
 
-        if (G_LIKELY (me->outport))
-        {
+	if (G_LIKELY (me->outport))
+	{
 		GST_DEBUG ("unrefing outport");
-                g_object_unref (me->outport);
-        }
+		g_object_unref (me->outport);
+	}
 
 	if (G_LIKELY (me->component))
-        {
+	{
 		GST_DEBUG ("Component refcount = %d",
-			  G_OBJECT (me->component)->ref_count);
+				G_OBJECT (me->component)->ref_count);
 
 		GST_DEBUG ("unrefing component");
-                g_object_unref (me->component);
-        }
+		g_object_unref (me->component);
+	}
 
 	if (G_LIKELY (me->factory))
 	{
 		GST_DEBUG ("Factory refcount = %d",
-			  G_OBJECT (me->factory)->ref_count);
-
+				G_OBJECT (me->factory)->ref_count);
 
 		GST_DEBUG ("unrefing factory");
 		g_object_unref (me->factory);
 	}
 
-        return;
+	return;
 }
 
 static gboolean

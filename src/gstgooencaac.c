@@ -164,15 +164,28 @@ GST_DEBUG_CATEGORY_STATIC (gst_goo_encaac_debug);
 GST_DEBUG_CATEGORY_INIT (gst_goo_encaac_debug, "gooencaac", 0, "OpenMAX Advanced Audio Coding encoder element")
 
 GST_BOILERPLATE_FULL (GstGooEncAac, gst_goo_encaac,
-		      GstElement, GST_TYPE_ELEMENT, _do_init)
+		      GstElement, GST_TYPE_ELEMENT, _do_init);
+
+/* for debugging:
+ */
+static guint duration_in = 0;
+static guint duration_out = 0;
+
 
 static GstFlowReturn
 process_output_buffer (GstGooEncAac* self, OMX_BUFFERHEADERTYPE* buffer)
 {
 	GstBuffer* out = NULL;
 	GstFlowReturn ret = GST_FLOW_ERROR;
+	guint bytes_pending;
+	GstClockTime duration;
 
 	GST_DEBUG_OBJECT (self, "outcount = %d", self->outcount);
+
+	GST_OBJECT_LOCK (self);
+	bytes_pending = self->bytes_pending;
+	self->bytes_pending = 0;
+	GST_OBJECT_UNLOCK (self);
 
 #if 0
 	out = gst_goo_buffer_new ();
@@ -186,13 +199,25 @@ process_output_buffer (GstGooEncAac* self, OMX_BUFFERHEADERTYPE* buffer)
 
 	if (out != NULL)
 	{
-		GST_BUFFER_DURATION (out) = self->duration;
+		duration  = bytes_pending * self->ns_per_byte;
+
+		GST_BUFFER_DURATION (out) = duration;
 		GST_BUFFER_OFFSET (out) = self->outcount++;
 		GST_BUFFER_TIMESTAMP (out) = self->ts;
 		if (self->ts != -1)
 		{
-			self->ts += self->duration;
+			self->ts += duration;
 		}
+
+		GST_DEBUG ("output buffer=0x%08x (time=%"GST_TIME_FORMAT", duration=%"GST_TIME_FORMAT", flags=%08x)",
+				out,
+				GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (out)),
+				GST_TIME_ARGS (GST_BUFFER_DURATION (out)),
+				GST_BUFFER_FLAGS (out)
+			);
+
+duration_out += duration;
+GST_DEBUG ("duration_out=%"GST_TIME_FORMAT, GST_TIME_ARGS (duration_out));
 
 		gst_buffer_set_caps (out, GST_PAD_CAPS (self->srcpad));
 
@@ -389,6 +414,8 @@ gst_goo_encaac_setcaps (GstPad * pad, GstCaps * caps)
 {
 	GstGooEncAac* self = GST_GOO_ENCAAC (gst_pad_get_parent (pad));
 	GstStructure* structure = gst_caps_get_structure (caps, 0);
+	OMX_AUDIO_PARAM_PCMMODETYPE* in_param = NULL;
+	OMX_AUDIO_PARAM_AACPROFILETYPE* out_param = NULL;
 
 	gint channels, samplerate, width;
 	gulong samples, bytes, fmt = 0;
@@ -429,38 +456,40 @@ gst_goo_encaac_setcaps (GstPad * pad, GstCaps * caps)
 	/* 20 msec */
 	gint outputframes = 0;
 	g_object_get (self->component, "frames-buffer", &outputframes, NULL);
-	self->duration = outputframes *
-		gst_util_uint64_scale_int (1, GST_SECOND, 50);
+	GST_DEBUG_OBJECT (self, "frames-buffer=%d", outputframes);
+//	self->duration = outputframes *
+//		gst_util_uint64_scale_int (1, GST_SECOND, 50);
 
 	GST_OBJECT_LOCK (self);
 	/* input params */
-	{
-		OMX_AUDIO_PARAM_PCMMODETYPE* param = NULL;
-		param = GOO_TI_AACENC_GET_INPUT_PORT_PARAM (self->component);
-		param->nBitPerSample = fmt;
-		param->nChannels = channels;
-		param->nSamplingRate = samplerate;
-	}
+	in_param = GOO_TI_AACENC_GET_INPUT_PORT_PARAM (self->component);
+	in_param->nBitPerSample = fmt;
+	in_param->nChannels = channels;
+	in_param->nSamplingRate = samplerate;
 
 	/* output params */
-	{
-		OMX_AUDIO_PARAM_AACPROFILETYPE* param = NULL;
-		param = GOO_TI_AACENC_GET_OUTPUT_PORT_PARAM (self->component);
+	out_param = GOO_TI_AACENC_GET_OUTPUT_PORT_PARAM (self->component);
 
-		param->nChannels = channels;
-		param->nSampleRate = samplerate;
-		if (channels == 1)
-		{
-			param->eChannelMode = OMX_AUDIO_ChannelModeMono;
-		}
-		if (channels == 2)
-		{
-			param->eChannelMode = OMX_AUDIO_ChannelModeStereo;
-		}
+	out_param->nChannels = channels;
+	out_param->nSampleRate = samplerate;
+	if (channels == 1)
+	{
+		out_param->eChannelMode = OMX_AUDIO_ChannelModeMono;
+	}
+	if (channels == 2)
+	{
+		out_param->eChannelMode = OMX_AUDIO_ChannelModeStereo;
 	}
 	GST_OBJECT_UNLOCK (self);
 
 	omx_start (self);
+
+	{
+		guint bytes_per_second = in_param->nBitPerSample / 8;
+		bytes_per_second *= in_param->nChannels;
+		bytes_per_second *= in_param->nSamplingRate;
+		self->ns_per_byte = (gint)(1000000000.0 / (gfloat)bytes_per_second);
+	}
 
 	/* now create a caps for it all */
 	srccaps = gst_caps_new_simple ("audio/mpeg",
@@ -502,21 +531,31 @@ gst_goo_encaac_chain (GstPad* pad, GstBuffer* buffer)
 	 * encoder flag to mask the discont. */
 	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
 	{
+GST_DEBUG ("********* CLEARING ADAPTER!!! ************");
 		gst_goo_adapter_clear (self->adapter);
-		self->ts = 0;
+//		self->ts = 0;
 	}
 
 	/* take latest timestamp, FIXME timestamp is the one of the
 	 * first buffer in the adapter. */
-	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
-	{
-		self->ts = GST_BUFFER_TIMESTAMP (buffer);
-	}
+//	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+//	{
+//		self->ts = GST_BUFFER_TIMESTAMP (buffer);
+//	}
 
 	result = GST_FLOW_OK;
 	GST_DEBUG_OBJECT (self, "Pushing a GST buffer to adapter (%d)",
 			  GST_BUFFER_SIZE (buffer));
 	gst_goo_adapter_push (self->adapter, buffer);
+
+	GST_DEBUG ("buffer=0x%08x (time=%"GST_TIME_FORMAT", duration=%"GST_TIME_FORMAT", flags=%08x)",
+			buffer,
+			GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)),
+			GST_TIME_ARGS (GST_BUFFER_DURATION (buffer)),
+			GST_BUFFER_FLAGS (buffer)
+		);
+duration_in += GST_BUFFER_DURATION (buffer);
+GST_DEBUG ("duration_in=%"GST_TIME_FORMAT, GST_TIME_ARGS (duration_in));
 
 	/* Collect samples until we have enough for an output frame */
 	while (gst_goo_adapter_available (self->adapter) >= omxbufsiz)
@@ -527,7 +566,11 @@ gst_goo_encaac_chain (GstPad* pad, GstBuffer* buffer)
 		gst_goo_adapter_peek (self->adapter, omxbufsiz, omxbuf);
 		omxbuf->nFilledLen = omxbufsiz;
 		gst_goo_adapter_flush (self->adapter, omxbufsiz);
+
+		GST_OBJECT_LOCK (self);
+		self->bytes_pending += omxbufsiz;
 		goo_component_release_buffer (self->component, omxbuf);
+		GST_OBJECT_UNLOCK (self);
 	}
 
 done:
@@ -559,8 +602,8 @@ gst_goo_encaac_change_state (GstElement* element, GstStateChange transition)
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		GST_OBJECT_LOCK (self);
 		{
+			self->bytes_pending = 0;
 			self->ts = 0;
-			self->outcount = 0;
 
 #if 0  /* this code overrides the parameters */
 			OMX_AUDIO_PARAM_AACPROFILETYPE* param = NULL;
