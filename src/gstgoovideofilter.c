@@ -186,47 +186,21 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 			priv->incount
 		);
 
-	if (inport_tunneled && (priv->outcount > priv->incount) && (!priv->flag_pause) )
+	gboolean is_done = FALSE;
+
+	if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
 	{
-		GST_INFO ("sending buffer with EOS flag");
-		buffer->nFlags |= OMX_BUFFERFLAG_EOS;
-
-		/* since we aren't going to send this buffer, we need to at
-		 * least unref it.. but maybe we should send it in addition
-		 * to the EOS event if it has any data in it?
-		 */
-		gst_buffer_unref (gst_buffer);
-
-		if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
-		{
-			GST_INFO ("EOS flag in output buffer (%d)",
-		  		buffer->nFilledLen);
-			goo_component_set_done (self->component);
-			gst_pad_push_event (self->srcpad, gst_event_new_eos());
-		}
-
-		goo_component_release_buffer (component, buffer);
-	}
-	else
-	{
-		gboolean is_done = FALSE;
-
-		if ((buffer->nFlags & OMX_BUFFERFLAG_EOS) || goo_port_is_eos (port))
-		{
-			GST_INFO ("EOS flag found in output buffer (%d)",
-			  	buffer->nFilledLen);
-			is_done = TRUE;
-		}
-
-		goo_component_release_buffer (component, buffer);
-		gst_pad_push (self->srcpad, gst_buffer);
-
-		if(is_done)
-		{
-			goo_component_set_done (self->component);
-		}
+		GST_INFO ("EOS flag found in output buffer (%d)",buffer->nFilledLen);
+		is_done = TRUE;
 	}
 
+	goo_component_release_buffer (component, buffer);
+	gst_pad_push (self->srcpad, gst_buffer);
+
+	if(is_done)
+	{
+		goo_component_set_done (self->component);
+	}
 	return;
 }
 
@@ -706,7 +680,6 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 		/* if we have tunneled input, we need to use the input_sem... so
 		 * ensure that it is allocated:
 		 */
-		priv->flag_pause = FALSE;
 		if (goo_port_is_tunneled (self->inport) && !priv->input_sem)
 		{
 			priv->input_sem = goo_semaphore_new (0);
@@ -714,10 +687,8 @@ gst_goo_video_filter_change_state (GstElement* element, GstStateChange transitio
 		break;
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 		/* goo_component_set_state_paused (self->component); */
-		priv->flag_pause = TRUE;
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
-		priv->flag_pause = FALSE;
 		if ((goo_component_get_state (self->component) == OMX_StateExecuting) &&
 				!(goo_port_is_tunneled (self->inport)))
 		{
