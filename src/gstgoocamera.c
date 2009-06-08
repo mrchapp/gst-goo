@@ -110,8 +110,8 @@ ResolutionInfo maxres;
 #define PREVIEW_DEFAULT		       TRUE
 #define OUTPUT_DEFAULT	      	   GOO_TI_POST_PROCESSOR_OUTPUT_LCD
 #define VIDEOPIPELINE_DEFAULT      2
-#define DISPLAY_WIDTH_DEFAULT      176
-#define DISPLAY_HEIGHT_DEFAULT     144
+#define DISPLAY_WIDTH_DEFAULT      320
+#define DISPLAY_HEIGHT_DEFAULT     240
 #define DISPLAY_POSX_DEFAULT       0
 #define DISPLAY_POSY_DEFAULT       0
 #define COLOR_DEFAULT              OMX_COLOR_FormatYCbYCr
@@ -548,14 +548,17 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			}
 			else
 			{
-				priv->display_width = 320;
-				priv->display_height = 240;
+				if ( ( priv->display_width > maxres.width )  | ( priv->display_height > maxres.height ) )
+				{
+					priv->display_height = DISPLAY_HEIGHT_DEFAULT;
+					priv->display_width = DISPLAY_WIDTH_DEFAULT;
+				}
 
 			}
 			GST_INFO_OBJECT (self, " preview dwidth = %d | preview dheight = %d",
 					 priv->display_width,
 					 priv->display_height);
-		}
+			}
 
 		/* postroc input port */
 		{
@@ -825,8 +828,6 @@ no_enc:
 
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
-
-	sleep(1);
 
 	if (component != NULL)
 	{
@@ -1407,7 +1408,7 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 
 	{
 		/* global constant */
-		maxres = goo_get_resolution ("cif");
+		maxres = goo_get_resolution ("vga");
 
 	}
 
@@ -1434,13 +1435,13 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 
 	spec = g_param_spec_uint ("display-width", "Display width",
 				  "Set the preview display width",
-				  1, maxres.width, DISPLAY_WIDTH_DEFAULT,
+				  176, maxres.width, DISPLAY_WIDTH_DEFAULT,
 				  G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
 	g_object_class_install_property (g_klass, PROP_DISPLAY_WIDTH, spec);
 
 	spec = g_param_spec_uint ("display-height", "Display height",
 				  "Set the preview display height",
-				  1, maxres.height, DISPLAY_HEIGHT_DEFAULT,
+				  144, maxres.height, DISPLAY_HEIGHT_DEFAULT,
 				  G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
 	g_object_class_install_property (g_klass, PROP_DISPLAY_HEIGHT, spec);
 
@@ -1549,10 +1550,9 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->fps_n = priv->fps_d = 0;
 		priv->preview = PREVIEW_DEFAULT;
 		priv->video_pipeline = VIDEOPIPELINE_DEFAULT;
-		priv->display_width = 0;
-		priv->display_height = 0;
+		priv->display_width = DISPLAY_WIDTH_DEFAULT;
+		priv->display_height = DISPLAY_HEIGHT_DEFAULT;
 		priv->capture = FALSE;
-		priv->fps_n = priv->fps_d = 0;
 		priv->vstab = VSTAB_DEFAULT;
 		priv->autofocus = FOCUS_DEFAULT;
 		priv->zoom = ZOOM_DEFAULT;
