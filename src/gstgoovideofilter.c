@@ -821,8 +821,6 @@ gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffe
 	}
 	else
 	{
-		/*Estimating timestamps */
-		GstClockTime next_time;
 
 		if (priv->outcount == 1 && priv->process_mode == STREAMMODE)
 		{
@@ -831,17 +829,37 @@ gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffe
 			GST_DEBUG_OBJECT (self, "Pushing newsegment");
 			gst_pad_push_event (self->srcpad, event);
 		}
+		/*Estimating timestamps */
+		/* timestamps, LOCK to get clock and base time. */
+		GstClock *clock;
+		GstClockTime timestamp;
 
-		next_time = gst_util_uint64_scale_int (priv->outcount * GST_SECOND,
-				self->rate_denominator, self->rate_numerator);
-		GST_BUFFER_TIMESTAMP (gst_buffer) = self->running_time;
+		GST_OBJECT_LOCK (self);
+		if ((clock = GST_ELEMENT_CLOCK (self)))
+		{
+			/* we have a clock, get base time and ref clock */
+			timestamp = GST_ELEMENT (self)->base_time;
+			gst_object_ref (clock);
+		}
+		else
+		{
+			/* no clock, can't set timestamps */
+			timestamp = GST_CLOCK_TIME_NONE;
+		}
+		GST_OBJECT_UNLOCK (self);
+
+		if (clock)
+		{
+		/* the time now is the time of the clock minus the base time */
+		timestamp = gst_clock_get_time (clock) - timestamp;
+		gst_object_unref (clock);
+		}
+		/* FIXME: use the timestamp from the buffer itself! */
+		GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
 		GST_DEBUG_OBJECT (self, "Estimating timestamp: time %" GST_TIME_FORMAT,
-					GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)));
-
+			GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)));
 		GST_BUFFER_DURATION (gst_buffer) = gst_util_uint64_scale_int (
 			GST_SECOND, self->rate_denominator, self->rate_numerator);
-
-		self->running_time = next_time;
 	}
 
 	GST_DEBUG_OBJECT (self, "");
