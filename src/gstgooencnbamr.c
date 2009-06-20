@@ -146,11 +146,19 @@ GST_DEBUG_CATEGORY_STATIC (gst_goo_encnbamr_debug);
 GST_BOILERPLATE_FULL (GstGooEncNbAmr, gst_goo_encnbamr,
 		      GstElement, GST_TYPE_ELEMENT, _do_init);
 
+/* for debugging:
+ */
+static guint duration_in = 0;
+static guint duration_out = 0;
+
+
 static GstFlowReturn
 process_output_buffer (GstGooEncNbAmr* self, OMX_BUFFERHEADERTYPE* buffer)
 {
 	GstBuffer* out = NULL;
 	GstFlowReturn ret = GST_FLOW_ERROR;
+	guint bytes_pending;
+	GstClockTime duration;
 
 	if (buffer->nFilledLen <= 0)
 	{
@@ -160,6 +168,12 @@ process_output_buffer (GstGooEncNbAmr* self, OMX_BUFFERHEADERTYPE* buffer)
 	}
 
 	GST_DEBUG_OBJECT (self, "outcount = %d", self->outcount);
+
+	GST_OBJECT_LOCK (self);
+	bytes_pending = self->bytes_pending;
+	self->bytes_pending = 0;
+	GST_OBJECT_UNLOCK (self);
+
 	if (G_UNLIKELY (self->outcount == 0 && self->mime == TRUE &&
 			self->mux == FALSE))
 	{
@@ -186,13 +200,25 @@ process_output_buffer (GstGooEncNbAmr* self, OMX_BUFFERHEADERTYPE* buffer)
 
 	if (out != NULL)
 	{
-		GST_BUFFER_DURATION (out) = self->duration;
+		duration  = bytes_pending * self->ns_per_byte;
+
+		GST_BUFFER_DURATION (out) = duration;
 		GST_BUFFER_OFFSET (out) = self->outcount++;
 		GST_BUFFER_TIMESTAMP (out) = self->ts;
 		if (self->ts != -1)
 		{
-			self->ts += self->duration;
+			self->ts += duration;
 		}
+
+		GST_DEBUG ("output buffer=0x%08x (time=%"GST_TIME_FORMAT", duration=%"GST_TIME_FORMAT", flags=%08x)",
+				out,
+				GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (out)),
+				GST_TIME_ARGS (GST_BUFFER_DURATION (out)),
+				GST_BUFFER_FLAGS (out)
+			);
+
+duration_out += duration;
+GST_DEBUG ("duration_out=%"GST_TIME_FORMAT, GST_TIME_ARGS (duration_out));
 
 		gst_buffer_set_caps (out, GST_PAD_CAPS (self->srcpad));
 
@@ -200,7 +226,7 @@ process_output_buffer (GstGooEncNbAmr* self, OMX_BUFFERHEADERTYPE* buffer)
 		ret = gst_pad_push (self->srcpad, out);
 	}
 
-	GST_INFO_OBJECT (self, "");
+	GST_DEBUG_OBJECT (self, "");
 
 	return ret;
 }
@@ -404,10 +430,23 @@ gst_goo_encnbamr_setcaps (GstPad* pad, GstCaps* caps)
 				    "channels", G_TYPE_INT, self->channels,
 				    "rate", G_TYPE_INT, self->rate, NULL);
 
+
+//	gint outputframes = 0;
+//	g_object_get (self->component, "frames-buffer", &outputframes, NULL);
+//	GST_DEBUG_OBJECT (self, "frames-buffer=%d", outputframes);
+
 	/* precalc duration as it's constant now */
-	self->duration =
-		gst_util_uint64_scale_int (160, GST_SECOND,
-					   self->rate * self->channels);
+//	self->duration =
+//		gst_util_uint64_scale_int (160, GST_SECOND,
+//					   self->rate * self->channels);
+
+	{
+		guint nBitPerSample=16;
+		guint bytes_per_second = nBitPerSample / 8;
+		bytes_per_second *= self->channels ;
+		bytes_per_second *= self->rate;
+		self->ns_per_byte = (gint)(1000000000.0 / (gfloat)bytes_per_second);
+	}
 
 	gst_pad_set_caps (self->srcpad, copy);
 	gst_caps_unref (copy);
@@ -446,21 +485,31 @@ gst_goo_encnbamr_chain (GstPad* pad, GstBuffer* buffer)
 	 * encoder flag to mask the discont. */
 	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
 	{
+GST_DEBUG ("********* CLEARING ADAPTER!!! ************");
 		gst_goo_adapter_clear (self->adapter);
-		self->ts = 0;
+//		self->ts = 0;
 	}
 
 	/* take latest timestamp, FIXME timestamp is the one of the
 	 * first buffer in the adapter. */
-	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
-	{
-		self->ts = GST_BUFFER_TIMESTAMP (buffer);
-	}
+//	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+//	{
+//		self->ts = GST_BUFFER_TIMESTAMP (buffer);
+//	}
 
 	ret = GST_FLOW_OK;
 	GST_DEBUG_OBJECT (self, "Pushing a GST buffer to adapter (%d)",
 			  GST_BUFFER_SIZE (buffer));
 	gst_goo_adapter_push (self->adapter, buffer);
+
+	GST_DEBUG ("buffer=0x%08x (time=%"GST_TIME_FORMAT", duration=%"GST_TIME_FORMAT", flags=%08x)",
+			buffer,
+			GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)),
+			GST_TIME_ARGS (GST_BUFFER_DURATION (buffer)),
+			GST_BUFFER_FLAGS (buffer)
+		);
+duration_in += GST_BUFFER_DURATION (buffer);
+GST_DEBUG ("duration_in=%"GST_TIME_FORMAT, GST_TIME_ARGS (duration_in));
 
 	/* Collect samples until we have enough for an output frame */
 	while (gst_goo_adapter_available (self->adapter) >= omxbufsiz)
@@ -471,7 +520,11 @@ gst_goo_encnbamr_chain (GstPad* pad, GstBuffer* buffer)
 		gst_goo_adapter_peek (self->adapter, omxbufsiz, omxbuf);
 		omxbuf->nFilledLen = omxbufsiz;
 		gst_goo_adapter_flush (self->adapter, omxbufsiz);
+
+		GST_OBJECT_LOCK (self);
+		self->bytes_pending += omxbufsiz;
 		goo_component_release_buffer (self->component, omxbuf);
+		GST_OBJECT_UNLOCK (self);
 	}
 
 done:
@@ -503,8 +556,9 @@ gst_goo_encnbamr_state_change (GstElement* element, GstStateChange transition)
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
 		self->rate = 0;
 		self->channels = 0;
+		self->bytes_pending = 0;
 		self->ts = 0;
-		self->outcount = 0;
+
 		gst_goo_adapter_clear (self->adapter);
 		break;
 	default:
