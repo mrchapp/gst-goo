@@ -171,6 +171,7 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 
 	gst_goo_video_filter_timestamp_buffer (self, gst_buffer, buffer);
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
+	PRINT_BUFFER (gst_buffer);
 
 	gboolean inport_tunneled = goo_port_is_tunneled (self->inport);
 
@@ -465,7 +466,7 @@ gst_goo_video_filter_chain2 (GstPad* pad, GstBuffer* buffer)
 	GstFlowReturn ret = GST_FLOW_OK;
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 
-GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
+	PRINT_BUFFER (buffer);
 
 	if (priv->incount == 0)
 	{
@@ -626,7 +627,7 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 		ghost_buffer->chain  = gst_goo_video_filter_chain2;
 		ghost_buffer->pad    = gst_object_ref(pad);
-		//GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
+		PRINT_BUFFER (buffer);
 		ghost_buffer->buffer = gst_buffer_ref(buffer);
 
 		if (self->src_caps)

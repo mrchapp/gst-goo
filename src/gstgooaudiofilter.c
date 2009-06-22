@@ -175,6 +175,7 @@ gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	GST_BUFFER_DURATION (gst_buffer) = self->duration;
 	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
 	GST_BUFFER_TIMESTAMP (gst_buffer) = self->audio_timestamp;
+	PRINT_BUFFER (gst_buffer);
 
 	if (self->audio_timestamp != -1)
 	{
@@ -354,7 +355,7 @@ gst_goo_audio_filter_chain2 (GstPad* pad, GstBuffer* buffer)
 
 	GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
 
-GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
+	PRINT_BUFFER (buffer);
 
 	if (self->component->cur_state != OMX_StateExecuting)
 	{
@@ -536,7 +537,7 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 		ghost_buffer->chain  = gst_goo_audio_filter_chain2;
 		ghost_buffer->pad    = gst_object_ref(pad);
-GST_DEBUG ("buffer=0x%08x (%"GST_TIME_FORMAT", %08x)", buffer, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_BUFFER_FLAGS (buffer));
+		PRINT_BUFFER (buffer);
 		ghost_buffer->buffer = gst_buffer_ref(buffer);
 
 		if (self->src_caps)
