@@ -202,8 +202,6 @@ gst_goo_decwmv_extra_buffer_processing(GstGooVideoFilter *filter, GstBuffer *buf
 
 	GST_DEBUG (" WMV GST_BUFFER_OFFSET Header = %d ", old_off);
 
-
-
 	if(is_vc1)
 	{
 	 /*  OLD buffer Header implementation  */
@@ -226,13 +224,13 @@ gst_goo_decwmv_extra_buffer_processing(GstGooVideoFilter *filter, GstBuffer *buf
 		GST_DEBUG ("Parsing WMV RCV Header info");
 		if(is_vc1)
 		{
-	     /* ************* VC1 codec_data header not longer needed in OMX 1.1.2  ************* */
-	     /*
+		/* ************* VC1 codec_data header no longer needed in OMX 1.1.2  ************* */
+		/*
 			guint header_size =  GST_BUFFER_SIZE(GST_GOO_VIDEODEC(self)->video_header) - 1;
 			GstBuffer *header = gst_buffer_new_and_alloc (header_size);
 			memcpy(GST_BUFFER_DATA(header), GST_BUFFER_DATA(GST_GOO_VIDEODEC(self)->video_header)+1, header_size);
-		    buffer = gst_buffer_join (header, buffer);
-         */
+			buffer = gst_buffer_join (header, buffer);
+		*/
 		}
 		else
 		{
@@ -267,7 +265,6 @@ gst_goo_decwmv_extra_buffer_processing(GstGooVideoFilter *filter, GstBuffer *buf
 			buffer = gst_buffer_join (new_buf, buffer);
 		}
 	}
-
 
 #if 0
         /* ************* FILE DUMP ************* */
@@ -328,29 +325,40 @@ gst_goo_decwmv_codec_data_extra_buffer (GstGooVideoFilter *filter, GstBuffer *bu
 
 	GST_DEBUG ("  VC-1  ");
 
-	if (is_vc1  &&  (GST_IS_BUFFER (GST_GOO_VIDEODEC(self)->video_header)) )
+	if (GST_IS_BUFFER (GST_GOO_VIDEODEC(self)->video_header))
 	{
-			guint header_size =  GST_BUFFER_SIZE(GST_GOO_VIDEODEC(self)->video_header) - 1;
+		guint header_size;
+		OMX_BUFFERHEADERTYPE* omx_buffer_head;
+		omx_buffer_head = goo_port_grab_buffer (GST_GOO_VIDEO_FILTER(self)->inport);
 
-			OMX_BUFFERHEADERTYPE* omx_buffer_head;
-		    omx_buffer_head = goo_port_grab_buffer (GST_GOO_VIDEO_FILTER(self)->inport);
+		g_assert(omx_buffer_head != NULL);
+		if(is_vc1)
+		{
+			header_size =  GST_BUFFER_SIZE(GST_GOO_VIDEODEC(self)->video_header) - 1;
 
 			if (omx_buffer_head != NULL)
 			{
 				GST_DEBUG ("memcpy to header buffer %d bytes", header_size);
 				memcpy(omx_buffer_head->pBuffer, GST_BUFFER_DATA(GST_GOO_VIDEODEC(self)->video_header)+1, header_size);
-				gst_buffer_unref (GST_GOO_VIDEODEC(self)->video_header);
+			}
+		else
+		{
+			header_size = 4;
+			/* Get the Volume Header from the extra_info */
+			((guint32*)omx_buffer_head->pBuffer)[0] = GUINT_TO_LE(*(guint32*)(GST_BUFFER_DATA(GST_GOO_VIDEODEC(self)->video_header)));
 
-			    GST_DEBUG ("is_first  PRINT !!!!!!!!!!!!!!!");
-				omx_buffer_head->nFilledLen = header_size;
-				omx_buffer_head->nOffset = 0;
-				omx_buffer_head->nFlags |=  0x00000080;    // OMX_BUFFERFLAG_CODECCONFIG
-				GST_DEBUG ("Sending FLAGS  %d", omx_buffer_head->nFlags);
+		}
 
-				goo_component_release_buffer (GST_GOO_VIDEO_FILTER(self)->component, omx_buffer_head);
-				GST_DEBUG_OBJECT (self, "released header buffer..");
+		GST_DEBUG ("is_first  PRINT !!!!!!!!!!!!!!!");
+		omx_buffer_head->nFilledLen = header_size;
+		omx_buffer_head->nOffset = 0;
+		omx_buffer_head->nFlags |=  0x00000080;    // OMX_BUFFERFLAG_CODECCONFIG
+		GST_DEBUG ("Sending FLAGS  %d", omx_buffer_head->nFlags);
 
-				retval = TRUE;
+		goo_component_release_buffer (GST_GOO_VIDEO_FILTER(self)->component, omx_buffer_head);
+		GST_DEBUG_OBJECT (self, "released header buffer..");
+
+		retval = TRUE;
             }
 	}
 
