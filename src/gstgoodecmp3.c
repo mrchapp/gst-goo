@@ -64,17 +64,14 @@ struct _GstGooDecMp3Private
 #define BITPERSAMPLE_DEFAULT 16
 #define CHANNELS_DEFAULT 2
 #define SAMPLERATE_DEFAULT 44100
-#define INPUT_BUFFERSIZE_DEFAULT 2304
-/*#define INPUT_BUFFERSIZE_DEFAULT 4 * 1024*/
-#define OUTPUT_BUFFERSIZE_DEFAULT 36864
-/*#define OUTPUT_BUFFERSIZE_DEFAULT 4 * 1024*/
+#define INPUT_BUFFERSIZE_DEFAULT 16384
+#define OUTPUT_BUFFERSIZE_DASF 4608
 #define NUM_INPUT_BUFFERS_DEFAULT 2
-/*#define NUM_INPUT_BUFFERS_DEFAULT 1*/
 #define NUM_OUTPUT_BUFFERS_DEFAULT 2
-/*#define NUM_OUTPUT_BUFFERS_DEFAULT 1*/
 #define DEFAULT_WIDTH 16
 #define DEFAULT_DEPTH 16
 #define LAYER_DEFAULT 3
+#define AUDIOVERSION_DEFAULT 0
 
 static const GstElementDetails details =
         GST_ELEMENT_DETAILS (
@@ -576,7 +573,7 @@ gst_goo_decmp3_init (GstGooDecMp3* self, GstGooDecMp3Class* klass)
         {
                 GooPort* port = GST_GOO_AUDIO_FILTER (self)->outport;
                 GOO_PORT_GET_DEFINITION (port)->nBufferSize =
-                        OUTPUT_BUFFERSIZE_DEFAULT;
+                        OUTPUT_BUFFERSIZE_DASF;
                 GOO_PORT_GET_DEFINITION (port)->format.audio.eEncoding =
                         OMX_AUDIO_CodingMP3;
 				/** Use the PARENT's callback function */
@@ -610,6 +607,7 @@ gst_goo_decmp3_sink_setcaps (GstPad *pad, GstCaps *caps)
 	guint sample_rate = SAMPLERATE_DEFAULT;
 	guint channels = CHANNELS_DEFAULT;
 	guint layer = LAYER_DEFAULT;
+	guint mpegaudioversion = AUDIOVERSION_DEFAULT;
 	guint factor;
 
 	self = GST_GOO_DECMP3 (GST_PAD_PARENT (pad));
@@ -627,6 +625,7 @@ gst_goo_decmp3_sink_setcaps (GstPad *pad, GstCaps *caps)
 	gst_structure_get_int (structure, "rate", &sample_rate);
 	gst_structure_get_int (structure, "channels", &channels);
 	gst_structure_get_int (structure, "layer", &layer);
+	gst_structure_get_int (structure, "mpegaudioversion", &mpegaudioversion);
 
 	factor = 0.02 * channels * sample_rate;
 	GST_GOO_AUDIO_FILTER (self)->duration =
