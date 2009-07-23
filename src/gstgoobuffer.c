@@ -26,7 +26,7 @@
 
 #include "gstgoobuffer.h"
 
-extern IMPORT_SYMBOL GstDebugCategory *GST_CAT_BUFFER;
+GST_EXPORT GstDebugCategory *GST_CAT_BUFFER;
 
 static void
 gst_goo_buffer_finalize (GstGooBuffer* buffer)
