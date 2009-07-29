@@ -38,7 +38,7 @@
 #define SAMPLERATE_DEFAULT 44100
 #define INPUT_BUFFERSIZE_DEFAULT 2000
 #define OUTPUT_BUFFERSIZE_DEFAULT 8192
-#define NUM_INPUT_BUFFERS_DEFAULT 1 
+#define NUM_INPUT_BUFFERS_DEFAULT 1
 #define NUM_OUTPUT_BUFFERS_DEFAULT 1
 #define DEFAULT_WIDTH 16
 #define DEFAULT_DEPTH 16
@@ -62,7 +62,7 @@ static const GstElementDetails details =
                 "Decodes Advanced Audio Coding streams with OpenMAX using ARM",
                 "Texas Instruments"
                 );
-                
+
 /* FIXME: make three caps, for mpegversion 1, 2 and 2.5 */
 static GstStaticPadTemplate sink_template =
         GST_STATIC_PAD_TEMPLATE (
@@ -73,7 +73,7 @@ static GstStaticPadTemplate sink_template =
 				"mpegversion = (int) 4, "
 				"rate = (int) [8000, 96000],"
 				"channels = (int) [1, 2] "
-				));         
+				));
 
 static GstStaticPadTemplate src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
@@ -93,9 +93,9 @@ GST_DEBUG_CATEGORY_STATIC (gst_goo_decarmaac_debug);
 	GST_DEBUG_CATEGORY_INIT (gst_goo_decarmaac_debug, "goodecarmaac", 0, \
 		"OpenMAX ARM-Advanced Audio Coding Decoder element");
 
-GST_BOILERPLATE_FULL (GstGooDecArmAac, gst_goo_decarmaac, 
+GST_BOILERPLATE_FULL (GstGooDecArmAac, gst_goo_decarmaac,
 	GstElement, GST_TYPE_ELEMENT, _do_init);
-    
+
 static gboolean
 _goo_ti_armaacdec_set_profile (GstGooDecArmAac* self, guint profile)
 {
@@ -199,7 +199,7 @@ _goo_ti_armaacdec_set_bit_output (GstGooDecArmAac* self, gboolean bit_output)
 
 	return retval;
 
-}    
+}
 
 static GstFlowReturn
 process_output_buffer (GstGooDecArmAac* self, OMX_BUFFERHEADERTYPE* buffer)
@@ -215,7 +215,7 @@ process_output_buffer (GstGooDecArmAac* self, OMX_BUFFERHEADERTYPE* buffer)
 		goo_component_release_buffer (self->component, buffer);
 		return GST_FLOW_OK;
 	}
-	
+
 	out = gst_buffer_new_and_alloc (buffer->nFilledLen);
 	memmove (GST_BUFFER_DATA (out),
 		buffer->pBuffer, buffer->nFilledLen);
@@ -224,7 +224,7 @@ process_output_buffer (GstGooDecArmAac* self, OMX_BUFFERHEADERTYPE* buffer)
 	self->duration = gst_util_uint64_scale_int (GST_SECOND,
 		iNum,
 		iDenom);
-	
+
 	GST_DEBUG_OBJECT (self, "Output buffer size %d", buffer->nFilledLen);
 	goo_component_release_buffer (self->component, buffer);
 
@@ -248,9 +248,9 @@ process_output_buffer (GstGooDecArmAac* self, OMX_BUFFERHEADERTYPE* buffer)
 			self->prev_ts = self->ts;
 		}
 	}
-	
+
 	GST_INFO_OBJECT (self, "");
-	
+
 	return ret;
 }
 
@@ -259,7 +259,7 @@ omx_output_buffer_cb (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 	gpointer data)
 {
 	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
-	
+
 	g_assert (GOO_IS_PORT (port));
 	g_assert (buffer != NULL);
 	g_assert (GOO_IS_COMPONENT (data));
@@ -272,7 +272,7 @@ omx_output_buffer_cb (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 
 	{
 		process_output_buffer (self, buffer);
-		
+
 		if (buffer->nFlags & OMX_BUFFERFLAG_EOS == 0x1 ||
 		    goo_port_is_eos (port))
 		{
@@ -281,10 +281,10 @@ omx_output_buffer_cb (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 					 buffer->nFilledLen);
 			goo_component_set_done (self->component);
 		}
-	}	
+	}
 
 	GST_INFO_OBJECT (self, "");
-	
+
 	return;
 }
 
@@ -296,7 +296,7 @@ omx_sync (GstGooDecArmAac* self)
 
 	OMX_PARAM_PORTDEFINITIONTYPE *def = NULL;
 	OMX_AUDIO_PARAM_AACPROFILETYPE* param;
-	
+
 	GST_INFO_OBJECT (self, "");
 
 	return;
@@ -313,7 +313,7 @@ omx_start (GstGooDecArmAac* self)
 		goo_port_set_process_buffer_function (self->outport,
 						      omx_output_buffer_cb);
 	}
-	
+
 	if (goo_component_get_state (self->component) == OMX_StateLoaded)
 	{
 		omx_sync (self);
@@ -458,6 +458,8 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 		else
 		{
 			GST_DEBUG_OBJECT (self, "He or eAAC+");
+			if (self->parametric_stereo)
+				self->rate /= 2;
 		}
 		format = OMX_AUDIO_AACStreamFormatMax;
 	}
@@ -465,9 +467,6 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 	param->nSampleRate = self->rate;
 	param->nChannels = self->channels;
 	param->eAACStreamFormat = format;
-
-	if(self->sbr)
-		self->rate *= 2;
 
 	// create reverse caps
 	copy = gst_caps_new_simple ("audio/x-raw-int",
@@ -477,6 +476,30 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 		"endianness", G_TYPE_INT, G_BYTE_ORDER,
 	    "channels", G_TYPE_INT, self->channels,
 	    "rate", G_TYPE_INT, self->rate, NULL);
+
+	if ((self->sbr == TRUE) && (gst_structure_has_field (structure, "codec_data")))
+	{
+		self->rate *= 2;
+		copy = gst_caps_new_simple ("audio/x-raw-int",
+			"width", G_TYPE_INT, 16,
+			"depth", G_TYPE_INT, 16,
+			"signed", G_TYPE_BOOLEAN, TRUE,
+			"endianness", G_TYPE_INT, G_BYTE_ORDER,
+			"channels", G_TYPE_INT, 2,
+			"rate", G_TYPE_INT, self->rate, NULL);
+	}
+
+
+	if ((self->parametric_stereo == TRUE) && (gst_structure_has_field (structure, "codec_data")))
+	{
+		copy = gst_caps_new_simple ("audio/x-raw-int",
+			"width", G_TYPE_INT, 16,
+			"depth", G_TYPE_INT, 16,
+			"signed", G_TYPE_BOOLEAN, TRUE,
+			"endianness", G_TYPE_INT, G_BYTE_ORDER,
+			"channels", G_TYPE_INT, 2,
+			"rate", G_TYPE_INT, self->rate, NULL);
+	}
 
 	gst_object_unref (prev_element);
 	gst_object_unref (peer);
@@ -534,7 +557,7 @@ gst_goo_decarmaac_chain (GstPad* pad, GstBuffer* buffer)
 	GST_DEBUG_OBJECT (self, "Pushing a GST buffer to adapter (%d)",
 			  GST_BUFFER_SIZE (buffer));
 	gst_goo_adapter_push (self->adapter, buffer);
-	
+
 	/* Collect samples until we have enough for an output frame */
 	while (gst_goo_adapter_available (self->adapter) >= omxbufsiz)
 	{
@@ -567,7 +590,7 @@ static gboolean
 gst_goo_decarmaac_bytepos_to_time (GstGooDecArmAac *self,
     gint64 bytepos, GstClockTime * ts)
 {
-	
+
 	GST_DEBUG_OBJECT (self, "rate %d", self->rate);
   if (bytepos == -1) {
     *ts = GST_CLOCK_TIME_NONE;
@@ -671,11 +694,11 @@ gst_goo_decarmaac_sink_event (GstPad * pad, GstEvent * event)
 
       gst_event_parse_new_segment_full (event, &update, &rate, &applied_rate,
           &format, &start, &stop, &pos);
-      
+
       GST_DEBUG_OBJECT (self, "rate %ld applied_rate %ld start %ld stop %ld pos %ld",
       			rate, applied_rate, format, start, stop, pos);
 
-      if (format == GST_FORMAT_BYTES) 
+      if (format == GST_FORMAT_BYTES)
       {
       	GstClockTime seg_start, seg_stop, seg_pos;
 
@@ -683,7 +706,7 @@ gst_goo_decarmaac_sink_event (GstPad * pad, GstEvent * event)
         if (!gst_goo_decarmaac_bytepos_to_time (self, stop, &seg_stop))
           seg_stop = GST_CLOCK_TIME_NONE;
         if (gst_goo_decarmaac_bytepos_to_time (self, start, &seg_start) &&
-            gst_goo_decarmaac_bytepos_to_time (self, pos, &seg_pos)) 
+            gst_goo_decarmaac_bytepos_to_time (self, pos, &seg_pos))
         {
           gst_event_unref (event);
           event = gst_event_new_new_segment_full (update, rate, applied_rate,
@@ -695,15 +718,15 @@ gst_goo_decarmaac_sink_event (GstPad * pad, GstEvent * event)
         }
       }
 
-      if (format != GST_FORMAT_TIME) 
+      if (format != GST_FORMAT_TIME)
       {
-        /* Unknown incoming segment format. Output a default open-ended 
+        /* Unknown incoming segment format. Output a default open-ended
          * TIME segment */
         gst_event_unref (event);
         event = gst_event_new_new_segment_full (update, rate, applied_rate,
             GST_FORMAT_TIME, 0, GST_CLOCK_TIME_NONE, 0);
       }
-      
+
       res = gst_pad_push_event (self->srcpad, event);
       break;
     }
@@ -750,10 +773,10 @@ gst_goo_decarmaac_state_change (GstElement* element, GstStateChange transition)
 	default:
 		break;
 	}
-	
+
 	ret = GST_ELEMENT_CLASS (parent_class)->change_state (element,
 							      transition);
-	
+
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
@@ -777,7 +800,7 @@ gst_goo_decarmaac_set_property (GObject* object, guint prop_id,
 {
 	g_assert (GST_IS_GOO_DECARMAAC (object));
 	GstGooDecArmAac* self = GST_GOO_DECARMAAC (object);
-	
+
 	OMX_AUDIO_PARAM_AACPROFILETYPE* param = NULL;
 	param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
 
@@ -806,12 +829,12 @@ gst_goo_decarmaac_set_property (GObject* object, guint prop_id,
 		case PROP_NUM_INPUT_BUFFERS:
 			g_object_set_property (G_OBJECT (self->inport),
 				       "buffercount", value);
-			break;		
+			break;
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 			break;
 	}
-	
+
 	return;
 }
 
@@ -821,7 +844,7 @@ gst_goo_decarmaac_get_property (GObject* object, guint prop_id,
 {
 	g_assert (GST_IS_GOO_DECARMAAC (object));
 	GstGooDecArmAac* self = GST_GOO_DECARMAAC (object);
-	
+
 	OMX_AUDIO_PARAM_AACPROFILETYPE* param = NULL;
 	param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
 
@@ -846,11 +869,11 @@ gst_goo_decarmaac_get_property (GObject* object, guint prop_id,
 		case PROP_NUM_INPUT_BUFFERS:
 			g_object_get_property (G_OBJECT (self->inport),
 				       "buffercount", value);
-			break;		
+			break;
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 			break;
-	}	
+	}
 
 	return;
 }
@@ -899,17 +922,17 @@ static void
 gst_goo_decarmaac_base_init (gpointer g_klass)
 {
 	GstElementClass* e_klass = GST_ELEMENT_CLASS (g_klass);
-	
+
 	gst_element_class_add_pad_template (e_klass,
                                             gst_static_pad_template_get
                                             (&sink_template));
-                                            
+
 	gst_element_class_add_pad_template (e_klass,
                                             gst_static_pad_template_get
                                             (&src_template));
-                                           
+
     gst_element_class_set_details (e_klass, &details);
-        
+
     return;
 }
 
@@ -918,19 +941,19 @@ gst_goo_decarmaac_class_init (GstGooDecArmAacClass* klass)
 {
 	GObjectClass* g_klass = G_OBJECT_CLASS (klass);
 	GstElementClass* gst_klass = GST_ELEMENT_CLASS (klass);
-	
-	g_klass->set_property = 
+
+	g_klass->set_property =
         GST_DEBUG_FUNCPTR (gst_goo_decarmaac_set_property);
-	g_klass->get_property = 
+	g_klass->get_property =
         GST_DEBUG_FUNCPTR (gst_goo_decarmaac_get_property);
-	g_klass->dispose = 
+	g_klass->dispose =
         GST_DEBUG_FUNCPTR (gst_goo_decarmaac_dispose);
 
 	gst_klass->change_state =
 		GST_DEBUG_FUNCPTR (gst_goo_decarmaac_state_change);
 
 	GParamSpec* spec;
-	
+
 	spec = g_param_spec_uint ("input-buffers", "Input buffers",
 				  "The number of OMX input buffers",
 				  1, 4, NUM_INPUT_BUFFERS_DEFAULT,
@@ -944,7 +967,7 @@ gst_goo_decarmaac_class_init (GstGooDecArmAacClass* klass)
 				  G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
 	g_object_class_install_property (g_klass, PROP_NUM_OUTPUT_BUFFERS,
 					 spec);
-	
+
 	spec = g_param_spec_uint ("profile", "Profile",
 							  "The EProfile",
 							  0, 3, 0, G_PARAM_READWRITE);
@@ -964,7 +987,7 @@ gst_goo_decarmaac_class_init (GstGooDecArmAacClass* klass)
 							  "eAAC+ format",
 							  FALSE, G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_PARAMETRICSTEREO, spec);
-    
+
 	return;
 }
 
@@ -976,7 +999,7 @@ gst_goo_decarmaac_init (GstGooDecArmAac* self, GstGooDecArmAacClass* klass)
 	self->component =
 		goo_component_factory_get_component (self->factory,
 						     GOO_TI_ARMAAC_DECODER);
-	
+
 	self->inport = goo_component_get_port (self->component, "input0");
 	g_assert (self->inport != NULL);
 
@@ -1005,6 +1028,6 @@ gst_goo_decarmaac_init (GstGooDecArmAac* self, GstGooDecArmAacClass* klass)
 	self->adapter = gst_goo_adapter_new ();
 
 	GST_DEBUG_OBJECT (self, "");
-	
+
     return;
 }
