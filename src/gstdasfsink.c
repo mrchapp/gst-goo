@@ -462,7 +462,15 @@ gst_dasf_sink_change_state (GstElement* element, GstStateChange transition)
 	switch (transition)
 	{
 //	case GST_STATE_CHANGE_NULL_TO_READY:
-//	case GST_STATE_CHANGE_READY_TO_PAUSED:
+	case GST_STATE_CHANGE_READY_TO_PAUSED:
+		/* When going to pause, all components should be already linked, so
+		 * we can call again this function in order to ensure that everything
+		 * that was not set in the linkage process is set here (this was
+		 * added to ensure that OMX Clock is set no matter
+		 * how the linkage is done before going to PAUSED)
+		 */
+		gst_dasf_enable(element);
+		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		/* acquire "virtual" ringbuffer */
 		priv->ring_buffer_acquired = TRUE;
