@@ -1354,11 +1354,95 @@ gst_goo_camera_finalize (GObject *object)
 
 	G_OBJECT_CLASS (parent_class)->dispose (object);
 }
+/*
+* Utility function which only shows a log of the component's state
+* transition
+*
+* @transition the transition to be done
+*/
 
+static void
+gst_goo_camera_print_verbose_state_change(GstStateChange transition)
+{
+	switch(transition)
+	{
+		case GST_STATE_CHANGE_READY_TO_PAUSED:
+		{
+			GST_LOG("changing state GST_STATE_CHANGE_READY_TO_PAUSED");
+			break;
+		}
+		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+		{
+			GST_LOG("Changing state GST_STATE_CHANGE_PAUSED_TO_PLAYING");
+			break;
+		}
+		case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+		{
+			GST_LOG("Changing state GST_STATE_CHANGE_PLAYING_TO_PAUSED");
+			break;
+		}
+		case GST_STATE_CHANGE_PAUSED_TO_READY:
+		{
+			GST_LOG("Changing state GST_STATE_CHANGE_PAUSED_TO_READY");
+			break;
+		}
+		case GST_STATE_CHANGE_READY_TO_NULL:
+		{
+			GST_LOG("Changing state GST_STATE_CHANGE_READY_TO_NULL");
+			break;
+		}
+		case GST_STATE_CHANGE_NULL_TO_READY:
+		{
+			GST_LOG("Changing state GST_STATE_CHANGE_NULL_TO_READY");
+			break;
+		}
+		default:
+			break;
+	}
+	return;
+}
+
+/**
+ * Utility function which post a message of type (GST_MESSAGE_ELEMENT)
+ * with a @structure_name. The field type would be set to G_TYPE_DOUBLE, and its value
+ * will be obtained using g_get_current_time
+ *
+ * @element the component
+ * @structure_name
+ */
+
+void
+gst_goo_camera_post_timestamp(GstElement* element,
+							gchar* structure_name)
+{
+
+  GstMessage *msg = NULL;
+  GstStructure *stru = NULL;
+  gdouble timestamp;
+  GTimeVal current_time;
+
+  /* Get the current time */
+  g_get_current_time(&current_time);
+  timestamp = current_time.tv_sec + current_time.tv_usec/1e6;
+
+
+  if(structure_name)
+  {
+	stru = gst_structure_new(structure_name,
+						structure_name, G_TYPE_DOUBLE, timestamp,NULL);
+  }
+
+  /* Create the message and send it to the bus */
+  msg = gst_message_new_custom (GST_MESSAGE_ELEMENT, GST_OBJECT (element), stru);
+  g_assert(gst_element_post_message (GST_ELEMENT_CAST (element), msg));
+  GST_INFO_OBJECT(element, "Sended messge with a timestamp %f", timestamp);
+  return;
+}
 static GstStateChangeReturn
 gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 {
 	GST_LOG ("transition=%d", transition);
+	gst_goo_camera_print_verbose_state_change(transition);
 
 	GstGooCamera* self = GST_GOO_CAMERA (element);
 	GstStateChangeReturn result;
@@ -1369,16 +1453,24 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+
 		if (priv->capture == FALSE)
 		{
+			/* Send a message to the app indicating the current timestamp */
+			gst_goo_camera_post_timestamp(element,"start-point");
+
 			GST_INFO_OBJECT (self, "Resume");
 			g_object_set (self->camera, "capture", TRUE, NULL);
 			priv->capture = !priv->capture;
 		}
 		break;
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+
 		if (priv->capture == TRUE)
 		{
+			/* Send a message to the app indicating the current timestamp */
+			gst_goo_camera_post_timestamp(element,"end-point-shot");
+
 			GST_INFO_OBJECT (self, "Pause");
 			g_object_set (self->camera, "capture", FALSE, NULL);
 			priv->capture = !priv->capture;
@@ -1386,6 +1478,7 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
 		{
+			GST_INFO_OBJECT (self, "Ready");
 			gst_goo_camera_stop (GST_BASE_SRC(self));
 		}
 		break;
