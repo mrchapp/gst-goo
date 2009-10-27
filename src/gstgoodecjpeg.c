@@ -546,6 +546,11 @@ gst_goo_decjpeg_read_header (GstGooDecJpeg* self)
 		}
 
 		d = g_new (guint8, itemlen);
+
+		/* Check correct memory allocation */
+		if (d == NULL)
+		  goto fail;
+
 		memcpy (d, data, itemlen);
 		data += itemlen;
 
@@ -1778,6 +1783,7 @@ void
 gst_goo_dec_jpeg_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 				  gpointer data)
 {
+	g_return_if_fail (buffer != NULL);
 	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
 
 	GST_DEBUG ("Enter");

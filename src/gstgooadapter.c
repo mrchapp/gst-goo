@@ -182,6 +182,7 @@ gst_goo_adapter_flush (GstGooAdapter * adapter, guint flush)
   adapter->size -= flush;
   adapter->assembled_len = 0;
   while (flush > 0) {
+    g_assert ( adapter->buflist != NULL );
     cur = adapter->buflist->data;
     if (GST_BUFFER_SIZE (cur) <= flush + adapter->skip) {
       /* can skip whole buffer */

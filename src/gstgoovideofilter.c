@@ -141,12 +141,12 @@ void
 gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 				  gpointer data)
 {
+	g_assert (buffer != NULL);
 	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
 
 	GST_DEBUG ("Enter");
 
 	g_assert (GOO_IS_PORT (port));
-	g_assert (buffer != NULL);
 	g_assert (GOO_IS_COMPONENT (data));
 
 
@@ -1038,7 +1038,7 @@ gst_goo_video_filter_codec_data_processing (GstGooVideoFilter* self, GstBuffer *
 {
 	GstGooVideoFilterClass* klass = GST_GOO_VIDEO_FILTER_GET_CLASS (self);
 
-	GstBuffer *retbuf;
+	GstBuffer *retbuf = NULL;
 	if (klass->codec_data_processing_func != NULL)
 	{
 		retbuf = (klass->codec_data_processing_func) (self, buffer);
@@ -1052,7 +1052,7 @@ gst_goo_video_filter_extra_buffer_processing (GstGooVideoFilter* self, GstBuffer
 {
 	GstGooVideoFilterClass* klass = GST_GOO_VIDEO_FILTER_GET_CLASS (self);
 
-	GstBuffer *retbuf;
+	GstBuffer *retbuf = NULL;
 	if (klass->extra_buffer_processing_func != NULL)
 	{
 		retbuf = (klass->extra_buffer_processing_func) (self, buffer);

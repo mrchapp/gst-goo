@@ -211,6 +211,9 @@ gst_goo_util_register_pipeline_change_cb (GstElement *elem, void (*cb) (GstEleme
 	PipelineChangeListenerContext *ctx = (PipelineChangeListenerContext *)
 		malloc (sizeof (PipelineChangeListenerContext));
 
+	if (ctx == NULL)
+		return NULL;
+
 	ctx->visited_nodes = g_hash_table_new (g_direct_hash, g_direct_equal);
 
 	ctx->elem = elem;

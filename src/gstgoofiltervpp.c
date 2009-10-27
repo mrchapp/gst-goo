@@ -806,8 +806,8 @@ gst_goo_filtervpp_chain (GstPad* pad, GstBuffer* buffer)
 	GstBuffer* outbuf = NULL;
 	gint size;
 
-	GstClockTime timestamp, duration;
-	guint64 offset, offsetend;
+	GstClockTime timestamp = 0, duration = 0;
+	guint64 offset = 0, offsetend = 0;
 
 	if (self->component->cur_state != OMX_StateExecuting)
 	{

@@ -78,12 +78,12 @@ void
 gst_goo_transform_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 				  gpointer data)
 {
+	g_assert (buffer != NULL);
 	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
 
 	GST_DEBUG ("");
 
 	g_assert (GOO_IS_PORT (port));
-	g_assert (buffer != NULL);
 	g_assert (GOO_IS_COMPONENT (data));
 
 	GooComponent* component = GOO_COMPONENT (data);

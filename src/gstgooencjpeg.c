@@ -363,8 +363,10 @@ gst_goo_encjpeg_chain (GstPad* pad, GstBuffer* buffer)
 	GstGooAdapter* adapter = self->adapter;
 	OMX_BUFFERHEADERTYPE* omx_buffer = NULL;
 
-	GstClockTime timestamp, duration;
-	guint64 offset, offsetend;
+	GstClockTime timestamp = 0;
+	GstClockTime duration = 0;
+	guint64 offset = 0;
+	guint64 offsetend = 0;
 	GstBuffer* outbuf = NULL;
 
 	if (goo_port_is_tunneled (self->inport))
