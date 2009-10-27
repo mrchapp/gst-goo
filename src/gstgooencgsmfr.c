@@ -104,6 +104,7 @@ process_output_buffer (GstGooEncGsmFr* self,
 	else
 	{
 		out = gst_buffer_new_and_alloc (buffer->nFilledLen);
+		g_assert (out != NULL);
 		memmove (GST_BUFFER_DATA (out),
 					buffer->pBuffer, buffer->nFilledLen);
 		goo_component_release_buffer (self->component, buffer);
@@ -132,10 +133,11 @@ static void
 omx_output_buffer_cb (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 		gpointer data)
 {
-	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
-	g_assert (GOO_IS_PORT (port));
 	g_assert (buffer != NULL);
+	g_assert (GOO_IS_PORT (port));
 	g_assert (GOO_IS_COMPONENT (data));
+
+	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
 
 	GooComponent* component = GOO_COMPONENT (data);
 	GstGooEncGsmFr* self = GST_GOO_ENCGSMFR (
@@ -290,7 +292,7 @@ gst_goo_encgsmfr_setcaps (GstPad* pad, GstCaps* caps)
 {
 	GstGooEncGsmFr *self = GST_GOO_ENCGSMFR (gst_pad_get_parent (pad));
 	GstStructure *structure;
-	GstCaps *copy;
+	GstCaps *copy = NULL;
 
 	structure = gst_caps_get_structure (caps, 0);
 

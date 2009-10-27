@@ -129,13 +129,11 @@ void
 gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer,
 				  gpointer data)
 {
-	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
-
 	GST_DEBUG ("Enter");
-
-	g_assert (GOO_IS_PORT (port));
 	g_assert (buffer != NULL);
+	g_assert (GOO_IS_PORT (port));
 	g_assert (GOO_IS_COMPONENT (data));
+	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
 
 	GooComponent* component = GOO_COMPONENT (data);
 	GstGooAudioFilter* self =
@@ -917,7 +915,7 @@ gst_goo_audio_filter_codec_data_processing (GstGooAudioFilter* self, GstBuffer *
 {
 	GstGooAudioFilterClass* klass = GST_GOO_AUDIO_FILTER_GET_CLASS (self);
 
-	GstBuffer *retbuf;
+	GstBuffer *retbuf = NULL;
 	if (klass->codec_data_processing_func != NULL)
 	{
 		retbuf = (klass->codec_data_processing_func) (self, buffer);
@@ -935,7 +933,7 @@ gst_goo_audio_filter_insert_header(GstGooAudioFilter* self, GstBuffer *buffer, g
 
 	GstGooAudioFilterClass* klass = GST_GOO_AUDIO_FILTER_GET_CLASS (self);
 
-	GstBuffer *retbuf;
+	GstBuffer *retbuf = NULL;
 	if (klass->codec_data_processing_func != NULL)
 	{
 		retbuf = (klass->insert_header_func) (self, buffer, counter);
@@ -964,7 +962,7 @@ gst_goo_audio_filter_extra_buffer_processing (GstGooAudioFilter* self, GstBuffer
 {
 	GstGooAudioFilterClass* klass = GST_GOO_AUDIO_FILTER_GET_CLASS (self);
 
-	GstBuffer *retbuf;
+	GstBuffer *retbuf = NULL;
 	if (klass->extra_buffer_processing_func != NULL)
 	{
 		retbuf = (klass->extra_buffer_processing_func) (self, buffer);

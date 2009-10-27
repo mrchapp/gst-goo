@@ -232,11 +232,11 @@ omx_output_buffer_cb (GooPort* port,
 		      OMX_BUFFERHEADERTYPE* buffer,
 		      gpointer data)
 {
-	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
-
-	g_assert (GOO_IS_PORT (port));
 	g_assert (buffer != NULL);
+	g_assert (GOO_IS_PORT (port));
 	g_assert (GOO_IS_COMPONENT (data));
+
+	g_return_if_fail (buffer->nFlags != OMX_BUFFERFLAG_DATACORRUPT);
 
 	GooComponent* component = GOO_COMPONENT (data);
 	GstGooEncWbAmr* self = GST_GOO_ENCWBAMR (
