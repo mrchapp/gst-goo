@@ -167,6 +167,7 @@ gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 	 * care of it.  Remove this function upon resolution of DR OMAPS00140835 and
 	 * OMAPS00140836 **/
 	gst_buffer = gst_goo_audio_filter_insert_header (self, gst_buffer, priv->outcount);
+	g_assert (gst_buffer != NULL);
 
 	gst_goo_audio_filter_timestamp_buffer (self, gst_buffer, buffer);
 
@@ -525,6 +526,7 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 	/** Function to perform post buffering processing **/
 	buffer = gst_goo_audio_filter_extra_buffer_processing (self, GST_BUFFER (buffer));
+	g_assert (buffer != NULL);
 
 	if (goo_port_is_tunneled (self->outport))
 	{

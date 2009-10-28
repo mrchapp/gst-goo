@@ -179,7 +179,7 @@ process_output_buffer (GstGooEncArmAac* self, OMX_BUFFERHEADERTYPE* buffer)
 	gst_goo_buffer_set_data (out, self->component, buffer);
 #else
 	out = gst_buffer_new_and_alloc (buffer->nFilledLen);
-	g_assert (buffer != NULL);
+	g_assert (out != NULL);
 	memmove (GST_BUFFER_DATA (out),
 		 buffer->pBuffer, buffer->nFilledLen);
 	goo_component_release_buffer (self->component, buffer);

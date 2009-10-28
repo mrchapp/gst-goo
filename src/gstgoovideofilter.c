@@ -617,6 +617,7 @@ gst_goo_video_filter_chain (GstPad* pad, GstBuffer* buffer)
 
 	/** Function to perform post buffering processing **/
 	buffer = gst_goo_video_filter_extra_buffer_processing (self, GST_BUFFER (buffer));
+	g_assert (buffer != NULL);
 
 	if (goo_port_is_tunneled (self->outport))
 	{
