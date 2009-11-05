@@ -1412,32 +1412,38 @@ gst_goo_camera_print_verbose_state_change(GstStateChange transition)
  */
 
 void
-gst_goo_camera_post_timestamp(GstElement* element,
+gst_goo_camera_post_timestamp(GstGooCamera* self,
 							gchar* structure_name)
 {
 
   GstMessage *msg = NULL;
   GstStructure *stru = NULL;
   gdouble timestamp;
+  gchar *str_timestamp;
   GTimeVal current_time;
 
   /* Get the current time */
   g_get_current_time(&current_time);
   timestamp = current_time.tv_sec + current_time.tv_usec/1e6;
-
+  str_timestamp = g_strdup_printf("%f",timestamp);
 
   if(structure_name)
   {
 	stru = gst_structure_new(structure_name,
-						structure_name, G_TYPE_DOUBLE, timestamp,NULL);
+	                         "timestamp",
+	                         G_TYPE_STRING,
+	                         str_timestamp,
+	                         NULL);
   }
 
   /* Create the message and send it to the bus */
-  msg = gst_message_new_custom (GST_MESSAGE_ELEMENT, GST_OBJECT (element), stru);
-  g_assert(gst_element_post_message (GST_ELEMENT_CAST (element), msg));
-  GST_INFO_OBJECT(element, "Sended messge with a timestamp %f", timestamp);
+  msg = gst_message_new_custom (GST_MESSAGE_ELEMENT, GST_OBJECT (self), stru);
+
+  g_assert(gst_element_post_message (GST_ELEMENT(self), msg));
+  GST_INFO_OBJECT(self, "Sended messge with a timestamp %f", timestamp);
   return;
 }
+
 static GstStateChangeReturn
 gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 {
@@ -1450,15 +1456,19 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 
 	result = GST_ELEMENT_CLASS (parent_class)->change_state (element,
 								 transition);
+
+	/* Send a message with the timestamp of the component's state change */
+	gchar *structure_name;
+	structure_name = g_strdup_printf("%s_%d", "camera_transition",transition);
+	gst_goo_camera_post_timestamp(self, structure_name);
+	g_free(structure_name);
+
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 
 		if (priv->capture == FALSE)
 		{
-			/* Send a message to the app indicating the current timestamp */
-			gst_goo_camera_post_timestamp(element,"start-point");
-
 			GST_INFO_OBJECT (self, "Resume");
 			g_object_set (self->camera, "capture", TRUE, NULL);
 			priv->capture = !priv->capture;
@@ -1468,9 +1478,6 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 
 		if (priv->capture == TRUE)
 		{
-			/* Send a message to the app indicating the current timestamp */
-			gst_goo_camera_post_timestamp(element,"end-point-shot");
-
 			GST_INFO_OBJECT (self, "Pause");
 			g_object_set (self->camera, "capture", FALSE, NULL);
 			priv->capture = !priv->capture;
