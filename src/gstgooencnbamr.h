@@ -68,6 +68,7 @@ struct _GstGooEncNbAmr
 	gint channels;
 	gint rate;
 	guint outcount;
+	gint duration;
 
 	/**
 	 * Number of bytes sent to OMX since receiving a encoded buffer back.

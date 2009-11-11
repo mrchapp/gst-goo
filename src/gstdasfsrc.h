@@ -29,7 +29,7 @@
 /* #include <gst/base/gstbasesrc.h> */
 #include <gst/audio/gstaudiosrc.h>
 #include <gst/base/gstbasetransform.h>
-#include "gstgooaudiofilter.h"
+#include "gstgooencpcm.h"
 
 G_BEGIN_DECLS
 
@@ -56,7 +56,7 @@ struct _GstDasfSrc
      GstAudioSrc element;
      GooTiAudioComponent* component;
      GSList *tracks;
-	 GstGooAudioFilter *peer_element;
+     GstElement *peer_element;
 };
 
 struct _GstDasfSrcClass

@@ -27,6 +27,7 @@
 #include <goo-ti-pcmenc.h>
 #include "gstgooencpcm.h"
 #include "gstgoobuffer.h"
+#include "gstgooutils.h"
 
 #include <string.h>
 
@@ -39,6 +40,16 @@ enum _GstGooEncPcmProp
 	PROP_0,
 	PROP_NUM_INPUT_BUFFERS,
 	PROP_NUM_OUTPUT_BUFFERS
+};
+
+#define GST_GOO_ENCPCM_GET_PRIVATE(obj) \
+	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_GOO_ENCPCM, GstGooEncPcmPrivate))
+
+struct _GstGooEncPcmPrivate
+{
+	guint incount;
+	guint outcount;
+
 };
 
 static const GstElementDetails details =
@@ -203,18 +214,23 @@ omx_stop (GstGooEncPcm* self)
 	g_assert (self != NULL);
 	g_assert (self->component != NULL);
 
-	if (goo_component_get_state (self->component) == OMX_StateExecuting)
+  GST_INFO_OBJECT (self,
+									"self->component %x state %d",
+									self->component,
+									goo_component_get_state (self->component) == OMX_StatePause);
+	if (goo_component_get_state (self->component) == OMX_StateExecuting ||
+			goo_component_get_state (self->component) == OMX_StatePause)
 	{
-		GST_INFO_OBJECT (self, "going to idle");
+		GST_INFO_OBJECT (self, "Going to idle");
 		goo_component_set_state_idle (self->component);
 	}
 
 	if (goo_component_get_state (self->component) == OMX_StateIdle)
 	{
-		GST_INFO_OBJECT (self, "going to loaded");
+		GST_INFO_OBJECT (self, "Going to loaded");
 		goo_component_set_state_loaded (self->component);
 	}
-
+  GST_INFO_OBJECT (self, "");
 	return;
 }
 
@@ -327,9 +343,15 @@ gst_goo_encpcm_setcaps (GstPad* pad, GstCaps* caps)
 static GstFlowReturn
 gst_goo_encpcm_chain (GstPad* pad, GstBuffer* buffer)
 {
+
 	GstGooEncPcm* self = GST_GOO_ENCPCM (gst_pad_get_parent (pad));
 	guint omxbufsiz = GOO_PORT_GET_DEFINITION (self->inport)->nBufferSize;
-	GstFlowReturn ret;
+	GstGooEncPcmPrivate* priv = GST_GOO_ENCPCM_GET_PRIVATE (self);
+	GstFlowReturn ret = GST_FLOW_OK;
+	OMX_BUFFERHEADERTYPE* omx_buffer = NULL;
+  GstBuffer* gst_buffer = NULL;
+
+	GST_DEBUG_OBJECT (self, "");
 
 	if (self->rate == 0 || self->channels == 0 ||
 	    self->component->cur_state != OMX_StateExecuting)
@@ -337,22 +359,6 @@ gst_goo_encpcm_chain (GstPad* pad, GstBuffer* buffer)
 		goto not_negotiated;
 	}
 
-	if (goo_port_is_tunneled (self->inport))
-	{
-		GST_DEBUG_OBJECT (self, "DASF Source");
-		OMX_BUFFERHEADERTYPE* omxbuf = NULL;
-		omxbuf = goo_port_grab_buffer (self->outport);
-		ret = process_output_buffer (self, omxbuf);
-		return ret;
-	}
-
-	/* discontinuity clears adapter, FIXME, maybe we can set some
-	 * encoder flag to mask the discont. */
-	if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
-	{
-		gst_goo_adapter_clear (self->adapter);
-		self->ts = 0;
-	}
 
 	/* take latest timestamp, FIXME timestamp is the one of the
 	 * first buffer in the adapter. */
@@ -361,27 +367,49 @@ gst_goo_encpcm_chain (GstPad* pad, GstBuffer* buffer)
 		self->ts = GST_BUFFER_TIMESTAMP (buffer);
 	}
 
-	ret = GST_FLOW_OK;
-	GST_DEBUG_OBJECT (self, "Pushing a GST buffer to adapter (%d)",
-			  GST_BUFFER_SIZE (buffer));
-	gst_goo_adapter_push (self->adapter, buffer);
 
-	/* Collect samples until we have enough for an output frame */
-	while (gst_goo_adapter_available (self->adapter) >= omxbufsiz)
+	if (goo_port_is_tunneled (self->inport))
 	{
-		GST_DEBUG_OBJECT (self, "Popping an OMX buffer");
-		OMX_BUFFERHEADERTYPE* omxbuf;
-		omxbuf = goo_port_grab_buffer (self->inport);
-		gst_goo_adapter_peek (self->adapter, omxbufsiz, omxbuf);
-		omxbuf->nFilledLen = omxbufsiz;
-		gst_goo_adapter_flush (self->adapter, omxbufsiz);
-		goo_component_release_buffer (self->component, omxbuf);
+		GST_DEBUG_OBJECT (self, "Input Port is tunneled (DM)");
+
+		GST_DEBUG_OBJECT (self, "Take the oxm buffer, process it and push it");
+		ret = process_output_buffer(self,
+																goo_port_grab_buffer (self->outport));
+	}
+	else
+	{
+		/* discontinuity clears adapter, FIXME, maybe we can set some
+		 * encoder flag to mask the discont. */
+		if (GST_BUFFER_FLAG_IS_SET (buffer, GST_BUFFER_FLAG_DISCONT))
+		{
+			gst_goo_adapter_clear (self->adapter);
+			self->ts = 0;
+		}
+
+
+
+
+		GST_DEBUG_OBJECT (self, "");
+		ret = GST_FLOW_OK;
+		GST_DEBUG_OBJECT (self, "Pushing a GST buffer to adapter (%d)",
+					GST_BUFFER_SIZE (buffer));
+		gst_goo_adapter_push (self->adapter, buffer);
+
+		/* Collect samples until we have enough for an output frame */
+		while (gst_goo_adapter_available (self->adapter) >= omxbufsiz)
+		{
+			GST_DEBUG_OBJECT (self, "Popping an OMX buffer");
+			OMX_BUFFERHEADERTYPE* omxbuf;
+			omxbuf = goo_port_grab_buffer (self->inport);
+			gst_goo_adapter_peek (self->adapter, omxbufsiz, omxbuf);
+			omxbuf->nFilledLen = omxbufsiz;
+			gst_goo_adapter_flush (self->adapter, omxbufsiz);
+			goo_component_release_buffer (self->component, omxbuf);
+		}
 	}
 
-	GST_DEBUG_OBJECT (self, "");
-	gst_object_unref (self);
-	gst_buffer_unref (buffer);
-	return ret;
+	goto done;
+
 
 	/* ERRORS */
 not_negotiated:
@@ -390,6 +418,12 @@ not_negotiated:
 				   (NULL), ("unknown type"));
 		return GST_FLOW_NOT_NEGOTIATED;
 	}
+
+done:
+  GST_DEBUG_OBJECT (self, "");
+	gst_object_unref (self);
+	gst_buffer_unref (buffer);
+	return ret;
 }
 
 static GstStateChangeReturn
@@ -403,6 +437,7 @@ gst_goo_encpcm_state_change (GstElement* element, GstStateChange transition)
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
+		GST_DEBUG_OBJECT (self, "GST_STATE_CHANGE_READY_TO_PAUSED");
 		self->rate = 0;
 		self->channels = 0;
 		self->ts = 0;
@@ -419,8 +454,14 @@ gst_goo_encpcm_state_change (GstElement* element, GstStateChange transition)
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
-		/* goo_component_set_state_paused (self->component); */
+		GST_OBJECT_LOCK (self);
+		goo_component_set_state_pause (self->component);
+		GST_OBJECT_UNLOCK (self);
 		break;
+
+	case GST_STATE_CHANGE_PAUSED_TO_READY:
+		break;
+
 	case GST_STATE_CHANGE_READY_TO_NULL:
 		omx_stop (self);
 		break;
@@ -428,7 +469,6 @@ gst_goo_encpcm_state_change (GstElement* element, GstStateChange transition)
 		break;
 	}
 
-	GST_DEBUG_OBJECT (self, "");
 
 	return ret;
 }
@@ -490,9 +530,15 @@ gst_goo_encpcm_dispose (GObject* object)
 
 	GstGooEncPcm* self = GST_GOO_ENCPCM (object);
 
+  if (G_LIKELY (self->adapter))
+	{
+		GST_DEBUG ("unrefing adapter");
+		g_object_unref (self->adapter);
+	}
+
 	if (G_LIKELY (self->inport))
 	{
-		GST_DEBUG ("unrefing outport");
+		GST_DEBUG ("unrefing inport");
 		g_object_unref (self->inport);
 	}
 
@@ -513,12 +559,6 @@ gst_goo_encpcm_dispose (GObject* object)
 	{
 		GST_DEBUG ("unrefing factory");
 		g_object_unref (self->factory);
-	}
-
-	if (G_LIKELY (self->adapter))
-	{
-		GST_DEBUG ("unrefing adapter");
-		g_object_unref (self->adapter);
 	}
 
 	return;
@@ -545,6 +585,8 @@ gst_goo_encpcm_class_init (GstGooEncPcmClass* klass)
 {
 	GObjectClass* g_klass = G_OBJECT_CLASS (klass);
 	GstElementClass* gst_klass = GST_ELEMENT_CLASS (klass);
+
+  g_type_class_add_private (klass, sizeof (GstGooEncPcmPrivate));
 
 	g_klass->set_property = gst_goo_encpcm_set_property;
 	g_klass->get_property = gst_goo_encpcm_get_property;
@@ -608,6 +650,11 @@ gst_goo_encpcm_init (GstGooEncPcm* self, GstGooEncPcmClass* klass)
 	g_object_set_data (G_OBJECT (self), "goo", self->component);
 
 	self->adapter = gst_goo_adapter_new ();
+
+	/* Initializing the private structure */
+	GstGooEncPcmPrivate* priv = GST_GOO_ENCPCM_GET_PRIVATE (self);
+	priv->incount = 0;
+	priv->outcount = 0;
 
 	GST_DEBUG_OBJECT (self, "");
 

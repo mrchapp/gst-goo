@@ -47,18 +47,18 @@ enum
 		/* PROP_NUM_OUTPUT_BUFFERS, */
 };
 
-#define GST_DASF_SRC_GET_PRIVATE(obj) \
-	(G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_DASF_SRC, GstDasfSrcPrivate))
+#define GST_DASF_SRC_GET_PRIVATE(obj) (G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_DASF_SRC, GstDasfSrcPrivate))
+
 static GstClockTime
 gst_dasf_src_get_time (GstClock * clock, GstDasfSrc * src);
 
 struct _GstDasfSrcPrivate
 {
-        guint num_output_buffers;
+    guint num_output_buffers;
 		guint incount;
 		guint outcount;
-        guint volume;
-        gboolean mute;
+    guint volume;
+    gboolean mute;
 };
 
 static const GstElementDetails details =
@@ -74,13 +74,12 @@ static GstStaticPadTemplate src_factory =
                 "src",
                 GST_PAD_SRC,
                 GST_PAD_ALWAYS,
-				GST_STATIC_CAPS ("audio/x-raw-int, "
+				        GST_STATIC_CAPS ("audio/x-raw-int, "
                                  "signed = (boolean) true, "
                                  "width = (int) [ 8, 32 ], "
                                  "depth = (int) [ 8, 32 ], "
                                  "rate = (int) { 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 56000, 64000, 80000, 96000 },"
-                                 "channels = (int) [ 1, 8 ]")
-                );
+                                 "channels = (int) [ 1, 8 ]"));
 
 
 
@@ -191,11 +190,12 @@ gst_dasf_enable (GstDasfSrc* self)
 	GooComponent *component;
 	GstBaseSrc *base_src;
 
-	if (self->component != NULL)
+  if (self->component != NULL)
 	{
 		return;
 	}
 
+  GST_INFO("Get the peer (=pad from the next element)");
 	peer = gst_pad_get_peer (GST_BASE_SRC_PAD (self));
 
 	if (G_UNLIKELY (peer == NULL))
@@ -244,12 +244,19 @@ gst_dasf_enable (GstDasfSrc* self)
 	}
 
 	self->component = GOO_TI_AUDIO_COMPONENT (component);
+
+	GST_INFO("Changing to DASF mode");
 	goo_ti_audio_component_set_dasf_mode (self->component, TRUE);
+
+	GST_INFO("Seting data path");
 	GST_DEBUG_OBJECT (self, "set data path");
 	goo_ti_audio_component_set_data_path (self->component, 0);
 
 	/** getting num-buffers from base src **/
 	base_src = GST_BASE_SRC (self);
+	GST_INFO("Number of buffers to be used %d",base_src->num_buffers);
+
+	GST_INFO("Setting the number of buffers to be used by %s",gst_element_get_name(next_element));
 	goo_ti_audio_encoder_set_number_buffers (GOO_TI_AUDIO_ENCODER (component), base_src->num_buffers);
 
 done:
@@ -325,35 +332,6 @@ gst_dasf_change_peer_omx_state (GstDasfSrc* self)
 		gst_object_unref (next_element);
 		return;
 	}
-
-	self->peer_element = g_object_ref (GST_GOO_AUDIO_FILTER (next_element));
-
- 	/* Work with a queue on the output buffers */
-	g_object_set (GST_GOO_AUDIO_FILTER (next_element)->component, "outport-queue", TRUE, NULL);
-
-	/** This fixates the caps on the next goo element to configure the output omx port  **/
-	gst_goo_audio_filter_check_fixed_src_caps (GST_GOO_AUDIO_FILTER (next_element));
-
-	g_object_set (GST_GOO_AUDIO_FILTER (next_element)->inport,
-		"buffercount",
-		1, NULL);
-	g_object_set (GST_GOO_AUDIO_FILTER (next_element)->outport,
-		"buffercount",
-		1, NULL);
-
-	GST_INFO ("Setting peer omx component to idle");
-	goo_component_set_state_idle (GST_GOO_AUDIO_FILTER (next_element)->component);
-	GST_INFO ("Setting peer omx component to executing");
-	goo_component_set_state_executing (GST_GOO_AUDIO_FILTER (next_element)->component);
-
-	gst_object_unref (peer);
-	gst_object_unref (next_element);
-
-	GST_DEBUG_OBJECT (self, "peer refcount = %d",
-			  G_OBJECT (peer)->ref_count);
-
-	GST_DEBUG_OBJECT (self, "next element refcount = %d",
-			  G_OBJECT (next_element)->ref_count);
 
 	return;
 
@@ -468,77 +446,42 @@ gst_dasf_src_create (GstAudioSrc *audiosrc,
 	GstBuffer* gst_buffer = NULL;
 	OMX_BUFFERHEADERTYPE* omx_buffer = NULL;
 	GstDasfSrcPrivate* priv = GST_DASF_SRC_GET_PRIVATE (self);
-	GstGooAudioFilter* me = self->peer_element;
 
 	GST_DEBUG ("");
 
-	if (me->component->cur_state != OMX_StateExecuting)
+
+	GST_INFO_OBJECT (self, "Ghost Buffer creation");
+  gst_buffer = GST_BUFFER (gst_ghost_buffer_new ());
+
+	GST_DEBUG_OBJECT (self, "setting caps on ghost buffer");
+	gst_buffer_set_caps (gst_buffer,
+				     GST_PAD_CAPS (GST_BASE_SRC_PAD (self)));
+
+	GST_DEBUG_OBJECT (self,"timestamp and duration calculation");
 	{
-		return GST_FLOW_UNEXPECTED;
-	}
-
-	GST_DEBUG ("goo stuff");
-	{
-		omx_buffer = goo_port_grab_buffer (me->outport);
-
-		if (gst_pad_alloc_buffer (GST_BASE_SRC_PAD (self),
-					  priv->outcount,
-					  omx_buffer->nFilledLen,
-					  GST_PAD_CAPS (GST_BASE_SRC_PAD (self)),
-					  &gst_buffer) == GST_FLOW_OK)
-		{
-			if (GST_IS_GOO_BUFFER (gst_buffer))
-			{
-				memcpy (GST_BUFFER_DATA (gst_buffer),
-					omx_buffer->pBuffer,
-					omx_buffer->nFilledLen);
-
-				goo_component_release_buffer (me->component,
-							      omx_buffer);
-			}
-			else
- 			{
-				gst_buffer_unref (gst_buffer);
-				gst_buffer = (GstBuffer*) gst_goo_buffer_new ();
-				gst_goo_buffer_set_data (gst_buffer,
-							 me->component,
-							 omx_buffer);
-			}
-		}
-		else
-		{
-			goto fail;
-		}
-	}
-
-
-	GST_DEBUG ("gst stuff");
-	{
-		GstClock* clock = NULL;
-		GstClockTime timestamp, duration;
-		clock = gst_element_get_clock (GST_ELEMENT (self));
-
-		timestamp = gst_clock_get_time (clock);
-		timestamp -= gst_element_get_base_time (GST_ELEMENT (self));
-		gst_object_unref (clock);
-
-		GST_BUFFER_TIMESTAMP (gst_buffer) = gst_util_uint64_scale_int (GST_SECOND, priv->outcount, 50);
+		GST_BUFFER_TIMESTAMP (gst_buffer) =
+				gst_util_uint64_scale_int (GST_SECOND,
+																		priv->outcount,
+																		50);
 
 		/* Set 20 millisecond duration */
-		duration = gst_util_uint64_scale_int
-			(GST_SECOND,
-			 1,
-			 50);
+		GST_BUFFER_DURATION (gst_buffer) =
+					gst_util_uint64_scale_int (GST_SECOND, 1, 50);
 
-		GST_BUFFER_DURATION (gst_buffer) = duration;
-		GST_BUFFER_OFFSET (gst_buffer) = priv->outcount++;
-		GST_BUFFER_OFFSET_END (gst_buffer) = priv->outcount;
+		GST_DEBUG ( "timestamp: %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)));
+		GST_DEBUG ( "duration: %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DURATION (gst_buffer)));
 
-		gst_buffer_set_caps (gst_buffer,
-		GST_PAD_CAPS (GST_BASE_SRC_PAD (self)));
 	}
 
-beach:
+	priv->outcount++;
+
+	GST_DEBUG_OBJECT(self,"setting the offset");
+	{
+		GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
+		GST_BUFFER_OFFSET_END (gst_buffer) = priv->outcount;
+	}
+
+
 	*buffer = gst_buffer;
 	return GST_FLOW_OK;
 
@@ -586,23 +529,39 @@ GST_BOILERPLATE_FULL (GstDasfSrc, gst_dasf_src, GstAudioSrc,
 static GstStateChangeReturn
 gst_dasf_src_change_state (GstElement* element, GstStateChange transition)
 {
-        GST_LOG ("");
+  GstStateChangeReturn ret = GST_STATE_CHANGE_SUCCESS;
 
-        GstDasfSrc* self = GST_DASF_SRC (element);
+  GST_LOG ("transition %d", transition);
 
-        switch (transition)
-        {
-        case GST_STATE_CHANGE_NULL_TO_READY:
-                gst_dasf_enable (self);
-                break;
+  GstDasfSrc* self = GST_DASF_SRC (element);
+
+  switch (transition)
+  {
+    case GST_STATE_CHANGE_NULL_TO_READY:
+    {
+      gst_dasf_enable (self);
+      break;
+    }
+
 		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-				gst_dasf_change_peer_omx_state (self);
-				break;
-        default:
-                break;
-        }
+		{
+		  gst_dasf_change_peer_omx_state (self);
+			break;
+    }
+    default:
+    {
+      break;
+    }
+  }
 
-        return GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+  ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+
+  /* downwards state changes */
+
+
+  return ret;
+
+
 }
 
 static gboolean
@@ -696,10 +655,14 @@ gst_dasf_src_dispose (GObject* object)
         }
 
 
+/*
 		GST_DEBUG ("GOO component refcount = %d",
 				  G_OBJECT (self->peer_element)->ref_count);
+*/
 
+/*
 		g_object_unref (self->peer_element);
+*/
 
 
         self->component = NULL;
@@ -725,79 +688,50 @@ gst_dasf_src_base_init (gpointer g_klass)
 static void
 gst_dasf_src_class_init (GstDasfSrcClass* klass)
 {
-	GObjectClass* g_klass;
-	GParamSpec* pspec;
-	GstElementClass *gst_element_klass;
-	GstBaseSrcClass* gst_base_klass;
-	GstAudioSrcClass *gst_audio_klass;
+	GObjectClass* gobject_class;
+	GstBaseSrcClass* gstbasesrc_class;
+	GstAudioSrcClass *gstaudiosrc_class;
 
-	/* gobject */
-	g_klass = G_OBJECT_CLASS (klass);
+  gobject_class = G_OBJECT_CLASS (klass);
+  gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
+  gstaudiosrc_class = GST_AUDIO_SRC_CLASS (klass);
+
 
 	g_type_class_add_private (klass, sizeof (GstDasfSrcPrivate));
 
+
+	gobject_class->dispose = GST_DEBUG_FUNCPTR (gst_dasf_src_dispose);
 #if 0
-	g_klass->set_property =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_set_property);
-	g_klass->get_property =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_get_property);
-
-	pspec = g_param_spec_uint ("output-buffers", "output buffers",
-				   "The number of OMX output buffers",
-				   1, 10, NUM_OUTPUT_BUFFERS_DEFAULT,
-				   G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
-	g_object_class_install_property (g_klass, PROP_NUM_OUTPUT_BUFFERS,
-					 pspec);
-
+	gobject_class->set_property = GST_DEBUG_FUNCPTR (gst_dasf_src_set_property);
+	gobject_class->get_property = GST_DEBUG_FUNCPTR (gst_dasf_src_get_property);
 #endif
 
-	g_klass->dispose = GST_DEBUG_FUNCPTR (gst_dasf_src_dispose);
-
-	/** GST ELEMENT **/
-
-
-	/** GST AUDIO SRC **/
-	gst_audio_klass = GST_AUDIO_SRC_CLASS (klass);
-
-	gst_audio_klass->open = GST_DEBUG_FUNCPTR (gst_dasf_src_open_device);
-	gst_audio_klass->prepare =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_prepare_device);
-	gst_audio_klass->unprepare =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_unprepare_device);
-	gst_audio_klass->close =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_close_device);
-	gst_audio_klass->read =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_read_device);
-	gst_audio_klass->delay =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_delay_device);
-	gst_audio_klass->reset =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_reset_device);
-
-	/** GST BASE SRC **/
-	gst_base_klass = GST_BASE_SRC_CLASS (klass);
-
-	gst_base_klass->get_caps = GST_DEBUG_FUNCPTR (gst_dasf_src_getcaps);
-
-	gst_base_klass->create = (void *)
-		GST_DEBUG_FUNCPTR (gst_dasf_src_create);
-
+	gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_dasf_src_getcaps);
+	gstbasesrc_class->create = GST_DEBUG_FUNCPTR (gst_dasf_src_create);
 	/** @todo When using seek functionality, consider using basesrc method **/
-
-	gst_base_klass->check_get_range = (void *)
-		GST_DEBUG_FUNCPTR (gst_dasf_src_check_get_range);
-
-	gst_base_klass->get_times = (void *)
-		GST_DEBUG_FUNCPTR (gst_dasf_src_get_times);
-
-	GST_ELEMENT_CLASS (klass)->change_state =
-		GST_DEBUG_FUNCPTR (gst_dasf_src_change_state);
+	gstbasesrc_class->check_get_range = GST_DEBUG_FUNCPTR (gst_dasf_src_check_get_range);
+	gstbasesrc_class->get_times = GST_DEBUG_FUNCPTR (gst_dasf_src_get_times);
 
 
+	gstaudiosrc_class->open = GST_DEBUG_FUNCPTR (gst_dasf_src_open_device);
+	gstaudiosrc_class->prepare = GST_DEBUG_FUNCPTR (gst_dasf_src_prepare_device);
+	gstaudiosrc_class->unprepare = GST_DEBUG_FUNCPTR (gst_dasf_src_unprepare_device);
+	gstaudiosrc_class->close = GST_DEBUG_FUNCPTR (gst_dasf_src_close_device);
+	gstaudiosrc_class->read =	GST_DEBUG_FUNCPTR (gst_dasf_src_read_device);
+	gstaudiosrc_class->delay = GST_DEBUG_FUNCPTR (gst_dasf_src_delay_device);
+	gstaudiosrc_class->reset = GST_DEBUG_FUNCPTR (gst_dasf_src_reset_device);
+
+	GST_ELEMENT_CLASS (klass)->change_state = GST_DEBUG_FUNCPTR (gst_dasf_src_change_state);
 
 
+#if 0
+	g_object_class_install_property (gobject_class, PROP_NUM_OUTPUT_BUFFERS,
+    g_param_spec_uint ("output-buffers", "output buffers",
+				   "The number of OMX output buffers",
+				   1, 10, NUM_OUTPUT_BUFFERS_DEFAULT,
+				   G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+#endif
 
-
-	return;
 }
 
 static void

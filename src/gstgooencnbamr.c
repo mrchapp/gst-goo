@@ -192,6 +192,7 @@ process_output_buffer (GstGooEncNbAmr* self, OMX_BUFFERHEADERTYPE* buffer)
  		gst_goo_buffer_set_data (out, self->component, buffer);
 #else
 		out = gst_buffer_new_and_alloc (buffer->nFilledLen);
+		GST_DEBUG("Moving omx data to a gst buffer (%d bytes)",buffer->nFilledLen);
 		memmove (GST_BUFFER_DATA (out),
 			 buffer->pBuffer, buffer->nFilledLen);
 		goo_component_release_buffer (self->component, buffer);
@@ -200,7 +201,9 @@ process_output_buffer (GstGooEncNbAmr* self, OMX_BUFFERHEADERTYPE* buffer)
 
 	if (out != NULL)
 	{
-		duration  = bytes_pending * self->ns_per_byte;
+		GST_DEBUG("Compute the duration (constant when Dasf-Mode");
+		duration  = (goo_port_is_tunneled (self->inport))? 	self->duration :
+																												bytes_pending * self->ns_per_byte;
 
 		GST_BUFFER_DURATION (out) = duration;
 		GST_BUFFER_OFFSET (out) = self->outcount++;
@@ -435,11 +438,14 @@ gst_goo_encnbamr_setcaps (GstPad* pad, GstCaps* caps)
 //	g_object_get (self->component, "frames-buffer", &outputframes, NULL);
 //	GST_DEBUG_OBJECT (self, "frames-buffer=%d", outputframes);
 
-	/* precalc duration as it's constant now */
-//	self->duration =
-//		gst_util_uint64_scale_int (160, GST_SECOND,
-//					   self->rate * self->channels);
-
+	if (goo_port_is_tunneled (self->inport))
+	{
+		/*In case of DM (DASF-MODE), we set the duration to a constant */
+	   /* precalc duration as it's constant now */
+		self->duration =
+			gst_util_uint64_scale_int (160, GST_SECOND, self->rate * self->channels);
+	}
+	else
 	{
 		guint nBitPerSample=16;
 		guint bytes_per_second = nBitPerSample / 8;
@@ -476,6 +482,7 @@ gst_goo_encnbamr_chain (GstPad* pad, GstBuffer* buffer)
 	{
 		GST_DEBUG_OBJECT (self, "DASF Source");
 		OMX_BUFFERHEADERTYPE* omxbuf = NULL;
+		self->ts = GST_BUFFER_TIMESTAMP (buffer);
 		omxbuf = goo_port_grab_buffer (self->outport);
 		ret = process_output_buffer (self, omxbuf);
 		goto done;

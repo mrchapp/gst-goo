@@ -44,6 +44,7 @@ G_BEGIN_DECLS
 
 typedef struct _GstGooEncPcm GstGooEncPcm;
 typedef struct _GstGooEncPcmClass GstGooEncPcmClass;
+typedef struct _GstGooEncPcmPrivate GstGooEncPcmPrivate;
 
 struct _GstGooEncPcm
 {

@@ -200,7 +200,9 @@ process_output_buffer (GstGooEncAac* self, OMX_BUFFERHEADERTYPE* buffer)
 
 	if (out != NULL)
 	{
-		duration  = bytes_pending * self->ns_per_byte;
+		GST_DEBUG("Compute the duration (constant when Dasf-Mode");
+		duration  = (goo_port_is_tunneled (self->inport))? 	self->duration :
+																												bytes_pending * self->ns_per_byte;
 
 		GST_BUFFER_DURATION (out) = duration;
 		GST_BUFFER_OFFSET (out) = self->outcount++;
@@ -424,6 +426,7 @@ gst_goo_encaac_setcaps (GstPad * pad, GstCaps * caps)
 
 	GstCaps* srccaps = NULL;
 
+	GST_DEBUG_OBJECT (self, "");
 	if (!gst_caps_is_fixed (caps))
 	{
 		goto done;
@@ -431,12 +434,14 @@ gst_goo_encaac_setcaps (GstPad * pad, GstCaps * caps)
 
 	omx_stop (self);
 
+	GST_DEBUG_OBJECT (self, "try getting channels and rate");
 	if (!gst_structure_get_int (structure, "channels", &channels) ||
 	    !gst_structure_get_int (structure, "rate", &samplerate))
 	{
 		goto done;
 	}
 
+	GST_DEBUG_OBJECT (self, "see if audio/x-raw-int exists");
 	if (gst_structure_has_name (structure, "audio/x-raw-int"))
 	{
 		gst_structure_get_int (structure, "width", &width);
@@ -453,6 +458,7 @@ gst_goo_encaac_setcaps (GstPad * pad, GstCaps * caps)
 	{
 		g_return_val_if_reached (FALSE);
 	}
+
 
 	/* 20 msec */
 	gint outputframes = 0;
@@ -483,8 +489,17 @@ gst_goo_encaac_setcaps (GstPad * pad, GstCaps * caps)
 	}
 	GST_OBJECT_UNLOCK (self);
 
+	GST_DEBUG_OBJECT (self, "omx_start");
 	omx_start (self);
 
+	if (goo_port_is_tunneled (self->inport))
+	{
+		/*In case of DM (DASF-MODE), we set the duration to a constant */
+	   /* precalc duration as it's constant now */
+		self->duration =
+			gst_util_uint64_scale_int (160, GST_SECOND, samplerate * channels);
+	}
+	else
 	{
 		guint bytes_per_second = in_param->nBitPerSample / 8;
 		bytes_per_second *= in_param->nChannels;
@@ -524,6 +539,7 @@ gst_goo_encaac_chain (GstPad* pad, GstBuffer* buffer)
 		GST_DEBUG_OBJECT (self, "DASF Source");
 		OMX_BUFFERHEADERTYPE* omxbuf = NULL;
 		omxbuf = goo_port_grab_buffer (self->outport);
+		self->ts = GST_BUFFER_TIMESTAMP (buffer);
 		result = process_output_buffer (self, omxbuf);
 		return result;
 	}
