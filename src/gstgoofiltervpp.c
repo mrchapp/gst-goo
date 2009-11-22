@@ -1118,7 +1118,8 @@ gst_goo_filtervpp_change_state (GstElement* element, GstStateChange transition)
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		GST_OBJECT_LOCK (self);
-		goo_component_set_state_executing (self->component);
+		if (goo_component_get_state (self->component) == OMX_StatePause)
+                  goo_component_set_state_executing (self->component);
 		GST_OBJECT_UNLOCK (self);
 		break;
 	default:
