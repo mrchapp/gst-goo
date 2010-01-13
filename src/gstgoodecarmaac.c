@@ -499,7 +499,7 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 			"signed", G_TYPE_BOOLEAN, TRUE,
 			"endianness", G_TYPE_INT, G_BYTE_ORDER,
 			"channels", G_TYPE_INT, 2,
-			"rate", G_TYPE_INT, self->rate, NULL);
+			"rate", G_TYPE_INT, self->rate * 2, NULL);
 	}
 
 	gst_object_unref (prev_element);

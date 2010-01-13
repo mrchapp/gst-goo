@@ -514,10 +514,10 @@ static gboolean
 gst_goo_decaac_check_fixed_src_caps (GstGooAudioFilter* filter)
 {
 	GstGooDecAac *self = GST_GOO_DECAAC (filter);
-	OMX_AUDIO_PARAM_PCMMODETYPE *param;
+	OMX_AUDIO_PARAM_AACPROFILETYPE* param;
 	GstCaps *src_caps;
 
-	param = GOO_TI_AACDEC_GET_OUTPUT_PORT_PARAM (GST_GOO_AUDIO_FILTER (self)->component);
+	param = GOO_TI_AACDEC_GET_INPUT_PORT_PARAM (GST_GOO_AUDIO_FILTER (self)->component);
 
 	src_caps = gst_caps_new_simple (
 								"audio/x-raw-int",
@@ -525,7 +525,7 @@ gst_goo_decaac_check_fixed_src_caps (GstGooAudioFilter* filter)
 								"signed", G_TYPE_BOOLEAN, TRUE,
 								"width", G_TYPE_INT, 16,
 								"depth", G_TYPE_INT, 16,
-								"rate", G_TYPE_INT, param->nSamplingRate,
+								"rate", G_TYPE_INT, param->nSampleRate,
 								"channels", G_TYPE_INT, param->nChannels,
 								NULL
 								);
