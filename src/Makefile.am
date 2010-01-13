@@ -34,6 +34,7 @@ libgstgoo_la_SOURCES = \
 	gstgooencjpeg.c \
 	gstgoodecjpeg.c \
 	gstgoodech264.c \
+	gstgoodech264720p.c \
 	gstgoodech263.c \
 	gstgoodecwmv.c \
 	gstgooencmpeg4.c \
@@ -97,6 +98,7 @@ noinst_HEADERS = \
 	gstgooencjpeg.h \
 	gstgoodecjpeg.h \
 	gstgoodech264.h \
+	gstgoodech264720p.h \
 	gstgoodech263.h \
 	gstgoodecwmv.h \
 	gstgooencmpeg4.h \

@@ -50,6 +50,7 @@
 #include "gstgooencjpeg.h"
 #include "gstgoodecjpeg.h"
 #include "gstgoodech264.h"
+#include "gstgoodech264720p.h"
 #include "gstgoodech263.h"
 #include "gstgoodecwmv.h"
 #include "gstgooencmpeg4.h"
@@ -95,6 +96,7 @@ static struct _element_entry _elements[] = {
 	{ "gooenc_jpeg", GST_RANK_PRIMARY, gst_goo_encjpeg_get_type },
 	{ "goodec_jpeg", GST_RANK_PRIMARY, gst_goo_decjpeg_get_type },
 	{ "goodec_h264", GST_RANK_PRIMARY, gst_goo_dech264_get_type },
+	{ "goodec_h264_720p", GST_RANK_PRIMARY, gst_goo_dech264_720p_get_type },
 	{ "goodec_h263", GST_RANK_PRIMARY, gst_goo_dech263_get_type },
 	{ "goodec_wmv", GST_RANK_PRIMARY, gst_goo_decwmv_get_type },
 	{ "gooenc_mpeg4", GST_RANK_PRIMARY, gst_goo_encmpeg4_get_type },
