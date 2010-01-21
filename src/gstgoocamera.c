@@ -823,6 +823,11 @@ no_enc:
 		g_object_set (self->camera,"focus", priv->autofocus, NULL);
 	}
 
+	{
+		GST_INFO_OBJECT (self, "seeting zoom");
+		g_object_set (self->camera,"zoom", priv->zoom, NULL);
+	}
+
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
 
@@ -1189,8 +1194,6 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 	}
 	break;
 	case PROP_ZOOM:
-		g_object_set_property (G_OBJECT (self->camera),
-				       "zoom", value);
 		priv->zoom = g_value_get_enum (value);
 		break;
 	case PROP_BALANCE:
