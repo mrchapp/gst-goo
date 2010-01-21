@@ -63,6 +63,8 @@ struct _GstGooEncGsmFr
 	OMX_BOOL bDTX;
 	OMX_BOOL bHiPassFilter;
 
+	gint channels;
+	gint rate;
 	gint duration;
 	guint outcount;
 };

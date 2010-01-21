@@ -296,9 +296,24 @@ gst_goo_encgsmfr_setcaps (GstPad* pad, GstCaps* caps)
 
 	structure = gst_caps_get_structure (caps, 0);
 
+	/* get channel count */
+	gst_structure_get_int (structure, "channels", &self->channels);
+	gst_structure_get_int (structure, "rate", &self->rate);
+
+	/* this is not wrong but will sound bad */
+	if (self->channels != 1)
+	{
+		g_warning ("audio capture is optimized for mono channels");
+	}
+
+	/* create reverse caps */
+	copy = gst_caps_new_simple ("audio/GSM-FR",
+				    "channels", G_TYPE_INT, self->channels,
+				    "rate", G_TYPE_INT, self->rate, NULL);
+
+	/* this is fixed but it should not be this way */
 	self->duration =
-		gst_util_uint64_scale_int (160, GST_SECOND, 1); /* TODO: ver que
-									que ondas con lo de channel y rate */
+		gst_util_uint64_scale_int (160, GST_SECOND, 1);
 
 	gst_pad_set_caps (self->srcpad, copy);
 	gst_caps_unref (copy);
@@ -323,6 +338,13 @@ gst_goo_encgsmfr_chain (GstPad* pad, GstBuffer* buffer)
 		goto not_negotiated;
 	}
 
+	/* take latest timestamp, FIXME timestamp is the one of the
+	 * first buffer in the adapter. */
+	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+	{
+		self->ts = GST_BUFFER_TIMESTAMP (buffer);
+	}
+
 	if (goo_port_is_tunneled (self->inport))
 	{
 		GST_DEBUG_OBJECT (self, "DASF Source");
@@ -340,12 +362,6 @@ gst_goo_encgsmfr_chain (GstPad* pad, GstBuffer* buffer)
 		self->ts = 0;
 	}
 
-	/* take latest timestamp, FIXME timestamp is the one of the
-	 * first buffer in the adapter. */
-	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
-	{
-		self->ts = GST_BUFFER_TIMESTAMP (buffer);
-	}
 
 	ret = GST_FLOW_OK;
 	GST_DEBUG_OBJECT (self, "Pushing a GST buffer to adapter (%d)",

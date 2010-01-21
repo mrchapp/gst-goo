@@ -297,6 +297,21 @@ gst_goo_encgsmhr_setcaps (GstPad* pad, GstCaps* caps)
 
 	structure = gst_caps_get_structure (caps, 0);
 
+	/* get channel count */
+	gst_structure_get_int (structure, "channels", &self->channels);
+	gst_structure_get_int (structure, "rate", &self->rate);
+
+	/* this is not wrong but will sound bad */
+	if (self->channels != 1)
+	{
+		g_warning ("audio capture is optimized for mono channels");
+	}
+
+	/* create reverse caps */
+	copy = gst_caps_new_simple ("audio/x-gsm",
+				    "channels", G_TYPE_INT, self->channels,
+				    "rate", G_TYPE_INT, self->rate, NULL);
+
 	self->duration =
 		gst_util_uint64_scale_int (160, GST_SECOND, 1); /* TODO: ver que
 									que ondas con lo de channel y rate */
