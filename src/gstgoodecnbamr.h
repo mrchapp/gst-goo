@@ -51,6 +51,7 @@ struct _GstGooDecNbAmr
 	GstGooAudioFilter goofilter;
 	guint dtx_mode;
 	gboolean mime;
+	gboolean mimo_mode;
 };
 
 struct _GstGooDecNbAmrClass

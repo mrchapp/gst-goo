@@ -58,6 +58,8 @@ struct _GstGooDecAac
 	gboolean sbr;
 	gboolean bit_output;
 	gboolean parametric_stereo;
+	guint mimo_mode;
+	guint out_device;
 };
 
 struct _GstGooDecAacClass

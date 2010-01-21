@@ -64,6 +64,7 @@ struct _GstGooEncNbAmr
 	OMX_AUDIO_AMRDTXMODETYPE dtxmode;
 	gboolean mime;
 	gboolean mux;
+	gboolean mimo_mode;
 
 	gint channels;
 	gint rate;

@@ -25,6 +25,13 @@
 #endif
 
 #include <goo-ti-nbamrdec.h>
+#include <goo-component.h>
+#include <goo-ti-audio-manager.h>
+
+#if 1
+#include <TIDspOmx.h>
+#endif
+
 #include "gstgoodecnbamr.h"
 
 GST_BOILERPLATE (GstGooDecNbAmr, gst_goo_decnbamr, GstGooAudioFilter, GST_TYPE_GOO_AUDIO_FILTER);
@@ -43,7 +50,8 @@ enum
 {
 	PROP_0,
 	PROP_MIME,
-	PROP_DTX_MODE
+	PROP_DTX_MODE,
+	PROP_MIMO_MODE
 };
 
 static GType
@@ -89,6 +97,7 @@ struct _GstGooDecNbAmrPrivate
 #define DEFAULT_FRAME_FORMAT OMX_AUDIO_AMRFrameFormatFSF
 #define DEFAULT_BITRATE 8000
 #define DEFAULT_MIME_MODE TRUE
+#define DEFAULT_MIMO_MODE FALSE
 #define NUM_INPUT_BUFFERS_DEFAULT 1
 #define NUM_OUTPUT_BUFFERS_DEFAULT 1
 #define DEFAULT_AMR_BANDMODE 1
@@ -122,6 +131,36 @@ static const GstStaticPadTemplate sink_factory =
 						"rate = (int) [8000, 48000], "
 						"channels = (int) [1, 2] "
 						));
+
+/* For NBAMR MIMO mode must be set to
+ * DATAPATH_MIMO_3 according to the OMX people.
+ */
+
+static gboolean
+_goo_ti_nbamrdec_set_mimo_mode (GstGooDecNbAmr* self)
+{
+    g_assert (self != NULL);
+    GooComponent * component = GST_GOO_AUDIO_FILTER(self)->component;
+    TI_OMX_DATAPATH datapath;
+
+    gboolean retval = TRUE;
+
+    switch (self->mimo_mode)
+    {
+        case TRUE:
+            datapath = DATAPATH_MIMO_3;
+            break;
+        default:
+            datapath = DATAPATH_APPLICATION;
+            break;
+    }
+
+    goo_component_set_config_by_name (component,
+            GOO_TI_AUDIO_COMPONENT (component)->datapath_param_name,
+            &datapath);
+
+    return retval;
+}
 
 static gboolean
 _goo_ti_nbamrdec_set_mime (GstGooDecNbAmr* self, gboolean mime)
@@ -236,6 +275,10 @@ gst_goo_decnbamr_set_property (GObject* object, guint prop_id,
 		case PROP_DTX_MODE:
 			_goo_ti_nbamrdec_set_dtx_mode (self, g_value_get_enum (value));
 		break;
+		case PROP_MIMO_MODE:
+			self->mimo_mode = g_value_get_boolean (value);
+			_goo_ti_nbamrdec_set_mimo_mode (self);
+		    break;
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -260,12 +303,88 @@ gst_goo_decnbamr_get_property (GObject* object, guint prop_id,
 		case PROP_DTX_MODE:
 			g_value_set_enum (value, self->dtx_mode);
 		break;
+		case PROP_MIMO_MODE:
+		    g_value_set_boolean (value, self->mimo_mode);
+		    break;
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
 	}
 
 	return;
+}
+
+static GstStateChangeReturn
+gst_goo_decnbamr_change_state (GstElement* element, GstStateChange transition)
+{
+    GST_LOG ("");
+
+    GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (element);
+	GstGooDecNbAmr* gNbAmr = GST_GOO_DECNBAMR (self);
+    GstStateChangeReturn result;
+
+    g_assert (self->component != NULL);
+    g_assert (self->inport != NULL);
+    g_assert (self->outport != NULL);
+
+    switch (transition)
+    {
+    case GST_STATE_CHANGE_NULL_TO_READY:
+        break;
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+        if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
+		(gNbAmr->mimo_mode == TRUE))
+        {
+            GooTiAudioManager* gAm;
+            gint ret;
+
+            gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
+            gAm->cmd->param1 = 8000;
+            gAm->cmd->param2 = 6;
+            ret = write (gAm->fdwrite, gAm->cmd, sizeof (AM_COMMANDDATATYPE));
+            g_assert (ret ==  sizeof (AM_COMMANDDATATYPE));
+        }
+        break;
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+        break;
+    default:
+        break;
+    }
+
+    gboolean avoid_double_idle = FALSE;
+
+    if (transition != GST_STATE_CHANGE_PAUSED_TO_READY)
+    {
+        result = GST_ELEMENT_CLASS (parent_class)->change_state (element,
+                                 transition);
+    }
+    else
+    {
+        result = GST_STATE_CHANGE_SUCCESS;
+    }
+
+
+    switch (transition)
+    {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+        /* goo_component_set_state_paused (self->component); */
+        break;
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
+        if(GOO_COMPONENT (self->component)->cur_state != OMX_StateIdle)
+        {
+            GST_INFO ("going to idle");
+            goo_component_set_state_idle (self->component);
+        }
+        GST_INFO ("going to loaded");
+        goo_component_set_state_loaded (self->component);
+        break;
+    case GST_STATE_CHANGE_READY_TO_NULL:
+        break;
+    default:
+        break;
+    }
+
+    return result;
 }
 
 static void
@@ -326,7 +445,6 @@ static void
 gst_goo_decnbamr_class_init (GstGooDecNbAmrClass* klass)
 {
 	GObjectClass* g_klass = G_OBJECT_CLASS (klass);
-	GParamSpec* pspec;
 	GstElementClass* gst_klass;
 
 	/* gobject */
@@ -349,11 +467,23 @@ gst_goo_decnbamr_class_init (GstGooDecNbAmrClass* klass)
 							  DEFAULT_DTX_MODE,
 							  G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
 	g_object_class_install_property (g_klass, PROP_DTX_MODE, spec);
+	spec = g_param_spec_boolean ("mimo-mode", "MIMO Mixer Mode",
+	                          "Activates MIMO Operation",
+	                          DEFAULT_MIMO_MODE, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_MIMO_MODE, spec);
 
 	/* GST GOO FILTER */
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decnbamr_check_fixed_src_caps);
 	gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decnbamr_process_mode_default);
+
+	gst_klass = GST_ELEMENT_CLASS (klass);
+
+	/* Setting output device for MIMO mode must be done before component
+	 * goes to executing state. Therefore, overloading change_state is
+	 * a good option.
+	 */
+	gst_klass->change_state = GST_DEBUG_FUNCPTR (gst_goo_decnbamr_change_state);
 
 	return;
 }

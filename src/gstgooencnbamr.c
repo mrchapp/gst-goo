@@ -25,6 +25,13 @@
 #endif
 
 #include <goo-ti-nbamrenc.h>
+#include <goo-component.h>
+#include <goo-ti-audio-manager.h>
+
+#if 1
+#include <TIDspOmx.h>
+#endif
+
 #include "gstgooencnbamr.h"
 #include "gstgoobuffer.h"
 
@@ -93,6 +100,7 @@ gst_goo_encnbamr_dtxmode_get_type ()
 #define DEFAULT_BANDMODE OMX_AUDIO_AMRBandModeNB7
 #define DEFAULT_DTXMODE OMX_AUDIO_AMRDTXModeOnAuto
 #define DEFAULT_MIME TRUE
+#define DEFAULT_MIMO_MODE FALSE
 #define DEFAULT_MUX FALSE
 #define DEFAULT_NUM_INPUT_BUFFERS  1
 #define DEFAULT_NUM_OUTPUT_BUFFERS 1
@@ -105,7 +113,8 @@ enum _GstGooEncNbAmrProp
 	PROP_MIME,
 	PROP_MUX,
 	PROP_NUM_INPUT_BUFFERS,
-	PROP_NUM_OUTPUT_BUFFERS
+	PROP_NUM_OUTPUT_BUFFERS,
+	PROP_MIMO_MODE
 };
 
 static const GstElementDetails details =
@@ -151,6 +160,35 @@ GST_BOILERPLATE_FULL (GstGooEncNbAmr, gst_goo_encnbamr,
 static guint duration_in = 0;
 static guint duration_out = 0;
 
+/* Setting up MIMO mixer modes for the component.
+ * The default value will be using DASF mixer value
+ * unless it is specified by the MIMO mode.
+ */
+
+static gboolean
+_goo_ti_encnbamr_set_mimo_mode (GstGooEncNbAmr* self)
+{
+    g_assert (self != NULL);
+    TI_OMX_DATAPATH datapath;
+
+    gboolean retval = TRUE;
+
+    switch (self->mimo_mode)
+    {
+        case TRUE:
+            datapath = DATAPATH_MIMO_2;
+            break;
+        default:
+            datapath = DATAPATH_APPLICATION;
+            break;
+    }
+
+    goo_component_set_config_by_name (self->component,
+            GOO_TI_AUDIO_COMPONENT (self->component)->datapath_param_name,
+            &datapath);
+
+    return retval;
+}
 
 static GstFlowReturn
 process_output_buffer (GstGooEncNbAmr* self, OMX_BUFFERHEADERTYPE* buffer)
@@ -565,8 +603,19 @@ gst_goo_encnbamr_state_change (GstElement* element, GstStateChange transition)
 		self->channels = 0;
 		self->bytes_pending = 0;
 		self->ts = 0;
-
 		gst_goo_adapter_clear (self->adapter);
+		if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
+				(self->mimo_mode == TRUE))
+		{
+		    GooTiAudioManager* gAm;
+		    gint ret;
+
+		    gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
+		    gAm->cmd->param1 = 8000;
+		    gAm->cmd->param2 = 7;
+		    ret = write (gAm->fdwrite, gAm->cmd, sizeof (AM_COMMANDDATATYPE));
+		    g_assert (ret ==  sizeof (AM_COMMANDDATATYPE));
+		}
 		break;
 	default:
 		break;
@@ -621,6 +670,10 @@ gst_goo_encnbamr_set_property (GObject* object, guint prop_id,
 	case PROP_MUX:
 		self->mux = g_value_get_boolean (value);
 		break;
+	case PROP_MIMO_MODE:
+		self->mimo_mode = g_value_get_boolean (value);
+		_goo_ti_encnbamr_set_mimo_mode (self);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -657,6 +710,9 @@ gst_goo_encnbamr_get_property (GObject* object, guint prop_id,
 		break;
 	case PROP_MUX:
 		g_value_set_boolean (value, self->mux);
+		break;
+	case PROP_MIMO_MODE:
+		g_value_set_boolean (value, self->mimo_mode);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -777,6 +833,11 @@ gst_goo_encnbamr_class_init (GstGooEncNbAmrClass* klass)
 	g_object_class_install_property (g_klass, PROP_NUM_OUTPUT_BUFFERS,
 					 spec);
 
+	spec = g_param_spec_boolean ("mimo-mode", "MIMO Mixer Mode",
+	        "Activates MIMO Operation",
+	        DEFAULT_MIMO_MODE, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_MIMO_MODE, spec);
+
 	return;
 }
 
@@ -793,6 +854,7 @@ gst_goo_encnbamr_init (GstGooEncNbAmr* self, GstGooEncNbAmrClass* klass)
 	self->bandmode = DEFAULT_BANDMODE;
 	self->dtxmode = DEFAULT_DTXMODE;
 	self->mux = DEFAULT_MUX;
+	self->mimo_mode = DEFAULT_MIMO_MODE;
 
 	self->inport = goo_component_get_port (self->component, "input0");
 	g_assert (self->inport != NULL);

@@ -50,6 +50,8 @@ typedef struct _GstGooDecMp3Private GstGooDecMp3Private;
 struct _GstGooDecMp3
 {
 	GstGooAudioFilter goofilter;
+    guint mimo_mode;
+    guint out_device;
 };
 
 struct _GstGooDecMp3Class

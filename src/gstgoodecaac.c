@@ -25,7 +25,74 @@
 #endif
 
 #include <goo-ti-aacdec.h>
+#include <goo-component.h>
+#include <goo-ti-audio-manager.h>
+
+#if 1
+#include <TIDspOmx.h>
+#endif
+
 #include "gstgoodecaac.h"
+
+enum
+{
+    DEV_SPEAKERS = 1,
+    DEV_HEADSET = 3
+};
+
+#define GST_GOO_TYPE_OUTPUT_DEVICE \
+    (gst_goo_decaac_output_device ())
+
+static GType
+gst_goo_decaac_output_device ()
+{
+    static GType type = 0;
+
+    if (G_UNLIKELY (type == 0))
+    {
+        static GEnumValue values[] = {
+            { DEV_SPEAKERS,
+              "Speakers", "Output Rendering Through Speakers" },
+            { DEV_HEADSET,
+              "Headset", "Output Rendering Through Headset" },
+            { 0, NULL, NULL }
+        };
+
+        type = g_enum_register_static ("GstGooDecAacOutputDevice", values);
+    }
+
+    return type;
+}
+
+#define GST_GOO_TYPE_MIMO_OPTIONS \
+    (gst_goo_decaac_mimo_options ())
+
+static GType
+gst_goo_decaac_mimo_options ()
+{
+    static GType type = 0;
+
+    if (G_UNLIKELY (type == 0))
+    {
+        static GEnumValue values[] = {
+            { DATAPATH_MIMO_0,
+              "M0", "Headset Output And All Frequencies" },
+            { DATAPATH_MIMO_1,
+              "M1", "Speakers Output At 8kHz Sample Frequency" },
+            { DATAPATH_MIMO_2,
+              "M2", "Speakers Output At 16kHz Sample Frequency" },
+            { DATAPATH_MIMO_3,
+              "M3", "Headset Output At 8kHz Sample Frequency" },
+            { DATAPATH_APPLICATION,
+              "DASF", "Single Output Mode" },
+            { 0, NULL, NULL }
+        };
+
+        type = g_enum_register_static ("GstGooDecAacMimoOptions", values);
+    }
+
+    return type;
+}
 
 GST_BOILERPLATE (GstGooDecAac, gst_goo_decaac, GstGooAudioFilter, GST_TYPE_GOO_AUDIO_FILTER);
 
@@ -45,7 +112,9 @@ enum
 	PROP_PROFILE,
 	PROP_SBR,
 	PROP_BITOUTPUT,
-	PROP_PARAMETRICSTEREO
+	PROP_PARAMETRICSTEREO,
+	PROP_MIMO_MODE,
+	PROP_OUT_DEVICE
 };
 
 static gboolean gst_goo_decaac_src_setcaps (GstPad *pad, GstCaps *caps);
@@ -72,6 +141,8 @@ struct _GstGooDecAacPrivate
 #define NUM_OUTPUT_BUFFERS_DEFAULT 1
 #define DEFAULT_WIDTH 16
 #define DEFAULT_DEPTH 16
+#define DEFAULT_MIMO_MODE 0
+#define DEFAULT_OUT_DEVICE 1
 
 static const GstElementDetails details =
         GST_ELEMENT_DETAILS (
@@ -104,6 +175,46 @@ static GstStaticPadTemplate sink_factory =
 				"rate = (int) [8000, 96000],"
 				"channels = (int) [1, 8] "
 				));
+
+/* Setting up MIMO mixer modes for the component.
+ * The default value will be using DASF mixer value
+ * unless it is specified by the MIMO mode.
+ */
+
+static gboolean
+_goo_ti_decaac_set_mimo_mode (GstGooDecAac* self)
+{
+    g_assert (self != NULL);
+    GooComponent * component = GST_GOO_AUDIO_FILTER(self)->component;
+    TI_OMX_DATAPATH datapath;
+
+    gboolean retval = TRUE;
+
+    switch (self->mimo_mode)
+    {
+        case 4:
+            datapath = DATAPATH_MIMO_0;
+            break;
+        case 5:
+            datapath = DATAPATH_MIMO_1;
+            break;
+        case 6:
+            datapath = DATAPATH_MIMO_2;
+            break;
+        case 7:
+            datapath = DATAPATH_MIMO_3;
+            break;
+        default:
+            datapath = DATAPATH_APPLICATION;
+            break;
+    }
+
+    goo_component_set_config_by_name (component,
+            GOO_TI_AUDIO_COMPONENT (component)->datapath_param_name,
+            &datapath);
+
+    return retval;
+}
 
 static gboolean
 _goo_ti_aacdec_set_profile (GstGooDecAac* self, guint profile)
@@ -245,6 +356,13 @@ gst_goo_decaac_set_property (GObject* object, guint prop_id,
 		_goo_ti_aacdec_set_parametric_stereo (self,
 		g_value_get_boolean (value));
 		break;
+	case PROP_MIMO_MODE:
+		self->mimo_mode = g_value_get_enum (value);
+		_goo_ti_decaac_set_mimo_mode (self);
+		break;
+	case PROP_OUT_DEVICE:
+		self->out_device = g_value_get_enum (value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -274,12 +392,93 @@ gst_goo_decaac_get_property (GObject* object, guint prop_id,
 		case PROP_PARAMETRICSTEREO:
 			g_value_set_boolean (value, self->parametric_stereo);
 			break;
+		case PROP_MIMO_MODE:
+		    g_value_set_enum (value, self->mimo_mode);
+		    break;
+		case PROP_OUT_DEVICE:
+		    g_value_set_enum (value, self->out_device);
+		    break;
 		default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 			break;
 	}
 
 	return;
+}
+
+static GstStateChangeReturn
+gst_goo_decaac_change_state (GstElement* element, GstStateChange transition)
+{
+    GST_LOG ("");
+
+    GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (element);
+    GstGooDecAac *gAac = GST_GOO_DECAAC (self);
+    GstStateChangeReturn result;
+
+    g_assert (self->component != NULL);
+    g_assert (self->inport != NULL);
+    g_assert (self->outport != NULL);
+
+    switch (transition)
+    {
+    case GST_STATE_CHANGE_NULL_TO_READY:
+        break;
+    case GST_STATE_CHANGE_READY_TO_PAUSED:
+        if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
+                (gAac->mimo_mode >= 4))
+        {
+            GooTiAudioManager* gAm;
+            OMX_AUDIO_PARAM_PCMMODETYPE *param;
+            gint ret;
+
+            param = GOO_TI_AACDEC_GET_INPUT_PORT_PARAM (self->component);
+            gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
+            gAm->cmd->param1 = param->nSamplingRate;
+            gAm->cmd->param2 = gAac->out_device;
+            ret = write (gAm->fdwrite, gAm->cmd, sizeof (AM_COMMANDDATATYPE));
+            g_assert (ret ==  sizeof (AM_COMMANDDATATYPE));
+        }
+        break;
+    case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+        break;
+    default:
+        break;
+    }
+
+    gboolean avoid_double_idle = FALSE;
+
+    if (transition != GST_STATE_CHANGE_PAUSED_TO_READY)
+    {
+        result = GST_ELEMENT_CLASS (parent_class)->change_state (element,
+                                 transition);
+    }
+    else
+    {
+        result = GST_STATE_CHANGE_SUCCESS;
+    }
+
+
+    switch (transition)
+    {
+    case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+        /* goo_component_set_state_paused (self->component); */
+        break;
+    case GST_STATE_CHANGE_PAUSED_TO_READY:
+        if(GOO_COMPONENT (self->component)->cur_state != OMX_StateIdle)
+        {
+            GST_INFO ("going to idle");
+            goo_component_set_state_idle (self->component);
+        }
+        GST_INFO ("going to loaded");
+        goo_component_set_state_loaded (self->component);
+        break;
+    case GST_STATE_CHANGE_READY_TO_NULL:
+        break;
+    default:
+        break;
+    }
+
+    return result;
 }
 
 static void
@@ -342,7 +541,6 @@ static void
 gst_goo_decaac_class_init (GstGooDecAacClass* klass)
 {
 	GObjectClass* g_klass = G_OBJECT_CLASS (klass);
-	GParamSpec* pspec;
 	GstElementClass* gst_klass;
 
 	/* gobject */
@@ -376,11 +574,31 @@ gst_goo_decaac_class_init (GstGooDecAacClass* klass)
 							  "eAAC+ format",
 							  FALSE, G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_PARAMETRICSTEREO, spec);
+	spec = g_param_spec_enum ("mimo-mode", "MIMO Mixer Mode",
+	                      "Specifies MIMO Operation",
+	                      GST_GOO_TYPE_MIMO_OPTIONS,
+	                      DEFAULT_MIMO_MODE,
+	                      G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+	g_object_class_install_property (g_klass, PROP_MIMO_MODE, spec);
+	spec = g_param_spec_enum ("out-device", "Output Device",
+	                      "Specifies Output Rendering Device",
+	                      GST_GOO_TYPE_OUTPUT_DEVICE,
+	                      DEFAULT_OUT_DEVICE,
+	                      G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+	g_object_class_install_property (g_klass, PROP_OUT_DEVICE, spec);
 
 	/* GST GOO FILTER */
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decaac_check_fixed_src_caps);
     gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decaac_process_mode_default);
+
+    gst_klass = GST_ELEMENT_CLASS (klass);
+
+    /* Setting output device for MIMO mode must be done before component
+     * goes to executing state. Therefore, overloading change_state is
+     * a good option.
+     */
+    gst_klass->change_state = GST_DEBUG_FUNCPTR (gst_goo_decaac_change_state);
 
 	return;
 }

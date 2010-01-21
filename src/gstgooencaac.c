@@ -26,6 +26,12 @@
 
 #include <goo-ti-aacenc.h>
 #include <string.h>
+#include <goo-component.h>
+#include <goo-ti-audio-manager.h>
+
+#if 1
+#include <TIDspOmx.h>
+#endif
 
 #include "gstgoobuffer.h"
 #include "gstgooencaac.h"
@@ -113,6 +119,7 @@ gst_goo_aacenc_profile_type ()
 #define DEFAULT_PROFILE      OMX_AUDIO_AACObjectLC
 #define DEFAULT_BITRATEMODE  GOO_TI_AACENC_BR_CBR
 #define DEFAULT_OUTPUTFORMAT OMX_AUDIO_AACStreamFormatMP4ADTS
+#define DEFAULT_MIMO_MODE FALSE
 
 enum __GstGooEncAacProp
 {
@@ -121,7 +128,8 @@ enum __GstGooEncAacProp
 	PROP_BITRATEMODE,
 	PROP_OUTPUTFORMAT,
 	PROP_CHANNELS,
-	PROP_PROFILE
+	PROP_PROFILE,
+	PROP_MIMO_MODE
 };
 
 static const GstElementDetails details =
@@ -171,6 +179,35 @@ GST_BOILERPLATE_FULL (GstGooEncAac, gst_goo_encaac,
 static guint duration_in = 0;
 static guint duration_out = 0;
 
+/* Setting up MIMO mixer modes for the component.
+ * The default value will be using DASF mixer value
+ * unless it is specified by the MIMO mode.
+ */
+
+static gboolean
+_goo_ti_aacenc_set_mimo_mode (GstGooEncAac* self)
+{
+    g_assert (self != NULL);
+    TI_OMX_DATAPATH datapath;
+
+    gboolean retval = TRUE;
+
+    switch (self->mimo_mode)
+    {
+        case TRUE:
+            datapath = DATAPATH_MIMO_3;
+            break;
+        default:
+            datapath = DATAPATH_APPLICATION;
+            break;
+    }
+
+    goo_component_set_config_by_name (self->component,
+            GOO_TI_AUDIO_COMPONENT (self->component)->datapath_param_name,
+            &datapath);
+
+    return retval;
+}
 
 static GstFlowReturn
 process_output_buffer (GstGooEncAac* self, OMX_BUFFERHEADERTYPE* buffer)
@@ -621,20 +658,19 @@ gst_goo_encaac_change_state (GstElement* element, GstStateChange transition)
 		{
 			self->bytes_pending = 0;
 			self->ts = 0;
-
-#if 0  /* this code overrides the parameters */
-			OMX_AUDIO_PARAM_AACPROFILETYPE* param = NULL;
-			param = GOO_TI_AACENC_GET_OUTPUT_PORT_PARAM
-				(self->component);
-
-			param->nBitRate = DEFAULT_BITRATE;
-			param->eAACStreamFormat = DEFAULT_OUTPUTFORMAT;
-			param->eAACProfile = DEFAULT_PROFILE;
-			param->nChannels = DEFAULT_CHANNELS;
-			param->nSampleRate = DEFAULT_SAMPLERATE;
-#endif
-
 			gst_goo_adapter_clear (self->adapter);
+			if (GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle &&
+					(self->mimo_mode == TRUE))
+			{
+			    GooTiAudioManager* gAm;
+			    gint ret;
+
+			    gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
+			    gAm->cmd->param1 = 8000;
+			    gAm->cmd->param2 = 5;
+			    ret = write (gAm->fdwrite, gAm->cmd, sizeof (AM_COMMANDDATATYPE));
+			    g_assert (ret ==  sizeof (AM_COMMANDDATATYPE));
+			}
 		}
 		GST_OBJECT_UNLOCK (self);
 		break;
@@ -685,6 +721,10 @@ gst_goo_encaac_set_property (GObject* object, guint prop_id,
 	case PROP_PROFILE:
 		param->eAACProfile = g_value_get_enum (value);
 		break;
+	case PROP_MIMO_MODE:
+		self->mimo_mode = g_value_get_boolean (value);
+		_goo_ti_aacenc_set_mimo_mode (self);
+	    break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -716,6 +756,9 @@ gst_goo_encaac_get_property (GObject* object, guint prop_id,
 		break;
 	case PROP_PROFILE:
 		g_value_set_enum (value, param->eAACProfile);
+		break;
+	case PROP_MIMO_MODE:
+		g_value_set_boolean (value, self->mimo_mode);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -824,6 +867,11 @@ gst_goo_encaac_class_init (GstGooEncAacClass* klass)
 				  G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
 	g_object_class_install_property (g_klass, PROP_PROFILE, spec);
 
+	spec = g_param_spec_boolean ("mimo-mode", "MIMO Mixer Mode",
+	            "Activates MIMO Operation",
+	            DEFAULT_MIMO_MODE, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_MIMO_MODE, spec);
+
 	gst_klass->change_state =
 		GST_DEBUG_FUNCPTR (gst_goo_encaac_change_state);
 
@@ -885,6 +933,7 @@ gst_goo_encaac_init (GstGooEncAac* self, GstGooEncAacClass *klass)
 
 	self->bitratemode = GOO_TI_AACENC_BR_CBR;
 	self->adapter = gst_goo_adapter_new ();
+	self->mimo_mode = FALSE;
 
 	GST_DEBUG_OBJECT (self, "");
 

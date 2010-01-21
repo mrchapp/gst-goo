@@ -25,11 +25,75 @@
 #endif
 
 #include <goo-component.h>
+#include <goo-ti-audio-manager.h>
 #include <goo-ti-mp3dec.h>
-
 #include <string.h>
 
+#if 1
+#include <TIDspOmx.h>
+#endif
+
 #include "gstgoodecmp3.h"
+
+enum
+{
+    DEV_SPEAKERS = 1,
+    DEV_HEADSET = 3
+};
+
+#define GST_GOO_TYPE_OUTPUT_DEVICE \
+    (gst_goo_decmp3_output_device ())
+
+static GType
+gst_goo_decmp3_output_device ()
+{
+    static GType type = 0;
+
+    if (G_UNLIKELY (type == 0))
+    {
+        static GEnumValue values[] = {
+            { DEV_SPEAKERS,
+              "Speakers", "Output Rendering Through Speakers" },
+            { DEV_HEADSET,
+              "Headset", "Output Rendering Through Headset" },
+            { 0, NULL, NULL }
+        };
+
+        type = g_enum_register_static ("GstGooDecMp3OutputDevice", values);
+    }
+
+    return type;
+}
+
+#define GST_GOO_TYPE_MIMO_OPTIONS \
+    (gst_goo_decmp3_mimo_options ())
+
+static GType
+gst_goo_decmp3_mimo_options ()
+{
+    static GType type = 0;
+
+    if (G_UNLIKELY (type == 0))
+    {
+        static GEnumValue values[] = {
+            { DATAPATH_MIMO_0,
+              "M0", "Headset Output And All Frequencies" },
+            { DATAPATH_MIMO_1,
+              "M1", "Speakers Output At 8kHz Sample Frequency" },
+            { DATAPATH_MIMO_2,
+              "M2", "Speakers Output At 16kHz Sample Frequency" },
+            { DATAPATH_MIMO_3,
+              "M3", "Headset Output At 8kHz Sample Frequency" },
+            { DATAPATH_APPLICATION,
+              "DASF", "Single Output Mode" },
+            { 0, NULL, NULL }
+        };
+
+        type = g_enum_register_static ("GstGooDecMp3MimoOptions", values);
+    }
+
+    return type;
+}
 
 GST_BOILERPLATE (GstGooDecMp3, gst_goo_decmp3, GstGooAudioFilter, GST_TYPE_GOO_AUDIO_FILTER);
 
@@ -45,7 +109,9 @@ enum
 /* args */
 enum
 {
-	PROP_0
+	PROP_0,
+	PROP_MIMO_MODE,
+	PROP_OUT_DEVICE
 };
 
 static gboolean gst_goo_decmp3_src_setcaps (GstPad *pad, GstCaps *caps);
@@ -72,6 +138,8 @@ struct _GstGooDecMp3Private
 #define DEFAULT_DEPTH 16
 #define LAYER_DEFAULT 3
 #define AUDIOVERSION_DEFAULT 0
+#define DEFAULT_MIMO_MODE 0
+#define DEFAULT_OUT_DEVICE 1
 
 static const GstElementDetails details =
         GST_ELEMENT_DETAILS (
@@ -106,6 +174,46 @@ static GstStaticPadTemplate sink_factory =
                                  "rate = (int) { 8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000, 56000, 64000, 80000, 96000 }, "
                                  "channels = (int) [ 1, 2 ]")
                 );
+
+/* Setting up MIMO mixer modes for the component.
+ * The default value will be using DASF mixer value
+ * unless it is specified by the MIMO mode.
+ */
+
+static gboolean
+_goo_ti_decmp3_set_mimo_mode (GstGooDecMp3* self)
+{
+    g_assert (self != NULL);
+    GooComponent * component = GST_GOO_AUDIO_FILTER(self)->component;
+    TI_OMX_DATAPATH datapath;
+
+    gboolean retval = TRUE;
+
+    switch (self->mimo_mode)
+    {
+        case 4:
+            datapath = DATAPATH_MIMO_0;
+            break;
+        case 5:
+            datapath = DATAPATH_MIMO_1;
+            break;
+        case 6:
+            datapath = DATAPATH_MIMO_2;
+            break;
+        case 7:
+            datapath = DATAPATH_MIMO_3;
+            break;
+        default:
+            datapath = DATAPATH_APPLICATION;
+            break;
+    }
+
+    goo_component_set_config_by_name (component,
+            GOO_TI_AUDIO_COMPONENT (component)->datapath_param_name,
+            &datapath);
+
+    return retval;
+}
 
 /* mp3 audio frame header parser from mencoder */
 
@@ -251,6 +359,7 @@ gst_goo_decmp3_change_state (GstElement* element, GstStateChange transition)
 	GST_LOG ("");
 
 	GstGooAudioFilter* self = GST_GOO_AUDIO_FILTER (element);
+	GstGooDecMp3 *gMp3 = GST_GOO_DECMP3 (self);
 	GstStateChangeReturn result;
 
 	g_assert (self->component != NULL);
@@ -262,6 +371,20 @@ gst_goo_decmp3_change_state (GstElement* element, GstStateChange transition)
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
+	    if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
+	            (gMp3->mimo_mode >= 4))
+	    {
+	        GooTiAudioManager* gAm;
+	        OMX_AUDIO_PARAM_PCMMODETYPE *param;
+	        gint ret;
+
+	        param = GOO_TI_MP3DEC_GET_OUTPUT_PARAM (self->component);
+	        gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
+	        gAm->cmd->param1 = param->nSamplingRate;
+	        gAm->cmd->param2 = gMp3->out_device;
+	        ret = write (gAm->fdwrite, gAm->cmd, sizeof (AM_COMMANDDATATYPE));
+	        g_assert (ret ==  sizeof (AM_COMMANDDATATYPE));
+	    }
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		break;
@@ -309,12 +432,19 @@ static void
 gst_goo_decmp3_set_property (GObject* object, guint prop_id,
 			     const GValue* value, GParamSpec* pspec)
 {
-	GstGooDecMp3Private* priv = GST_GOO_DECMP3_GET_PRIVATE (object);
+	g_assert (GST_IS_GOO_DECMP3 (object));
+	GstGooDecMp3* self = GST_GOO_DECMP3 (object);
 
 	switch (prop_id)
 	{
-	default:
-		break;
+	    case PROP_MIMO_MODE:
+		self->mimo_mode = g_value_get_enum (value);
+	        _goo_ti_decmp3_set_mimo_mode (self);
+	        break;
+	    case PROP_OUT_DEVICE:
+		self->out_device = g_value_get_enum (value);
+	    default:
+	        break;
 	}
 
 	return;
@@ -324,12 +454,19 @@ static void
 gst_goo_decmp3_get_property (GObject* object, guint prop_id,
 			     GValue* value, GParamSpec* pspec)
 {
-	GstGooDecMp3Private* priv = GST_GOO_DECMP3_GET_PRIVATE (object);
+	g_assert (GST_IS_GOO_DECMP3 (object));
+	GstGooDecMp3* self = GST_GOO_DECMP3 (object);
 
 	switch (prop_id)
 	{
-	default:
-		break;
+	    case PROP_MIMO_MODE:
+	        g_value_set_enum (value, self->mimo_mode);
+	        break;
+	    case PROP_OUT_DEVICE:
+	        g_value_set_enum (value, self->out_device);
+	        break;
+	    default:
+	        break;
 	}
 
 	return;
@@ -365,6 +502,7 @@ gst_goo_decmp3_codec_data_processing (GstGooAudioFilter * filter, GstBuffer *buf
 
 	return buffer;
 }
+
 static gboolean
 gst_goo_decmp3_check_fixed_src_caps (GstGooAudioFilter *filter)
 {
@@ -511,6 +649,22 @@ gst_goo_decmp3_class_init (GstGooDecMp3Class* klass)
 		GST_DEBUG_FUNCPTR (gst_goo_decmp3_set_property);
 	g_klass->get_property =
 		GST_DEBUG_FUNCPTR (gst_goo_decmp3_get_property);
+
+	GParamSpec* spec;
+
+	spec = g_param_spec_enum ("mimo-mode", "MIMO Mixer Mode",
+	                  "Specifies MIMO Operation",
+	                  GST_GOO_TYPE_MIMO_OPTIONS,
+	                  DEFAULT_MIMO_MODE,
+	                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+	g_object_class_install_property (g_klass, PROP_MIMO_MODE, spec);
+
+	spec = g_param_spec_enum ("out-device", "Output Device",
+	                  "Specifies Output Rendering Device",
+	                  GST_GOO_TYPE_OUTPUT_DEVICE,
+	                  DEFAULT_OUT_DEVICE,
+	                  G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
+	g_object_class_install_property (g_klass, PROP_OUT_DEVICE, spec);
 
 	/* GST GOO FILTER overrides */
 	GstGooAudioFilterClass *gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);

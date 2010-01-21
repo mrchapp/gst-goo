@@ -66,6 +66,7 @@ struct _GstGooEncAac
 	GooPort* outport;
 	guint outcount;
 	gint duration;
+	gboolean mimo_mode;
 
 	/**
 	 * Number of bytes sent to OMX since receiving a encoded buffer back.
