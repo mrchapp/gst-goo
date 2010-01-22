@@ -45,6 +45,7 @@ libgstgoo_la_SOURCES = \
 	gstgoodecmpeg2.c \
 	gstgoovideofilter.c \
     gstgoovideodec.c \
+    gstgoovideodec720p.c \    
 	gstgoovideoenc.c \
 	gstgooutils.c \
 	gstgoodecgsmfr.c
@@ -109,6 +110,7 @@ noinst_HEADERS = \
 	gstgoodecmpeg2.h \
 	gstgoovideofilter.h \
     gstgoovideodec.h \
+    gstgoovideodec720p.h \    
 	gstgoovideoenc.h \
 	gstgooutils.h \
 	gstgoodecgsmfr.h

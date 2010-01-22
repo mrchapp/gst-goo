@@ -28,7 +28,7 @@
 #include "gstgoodech264720p.h"
 #include <string.h>
 
-GST_BOILERPLATE (GstGooDecH264720p, gst_goo_dech264_720p, GstGooVideoDec, GST_TYPE_GOO_VIDEODEC);
+GST_BOILERPLATE (GstGooDecH264720p, gst_goo_dech264_720p, GstGooVideoDec720p, GST_TYPE_GOO_VIDEODEC720P);
 
 GST_DEBUG_CATEGORY_STATIC (gst_goo_dech264_720p_debug);
 #define GST_CAT_DEFAULT gst_goo_dech264_720p_debug
@@ -100,7 +100,7 @@ gst_goo_dech264_720p_codec_data_processing (GstGooVideoFilter *filter, GstBuffer
 
 	GstGooDecH264720p *self = GST_GOO_DECH264720P (filter);
 	GooComponent *component = GST_GOO_VIDEO_FILTER (self)->component;
-	if (GST_IS_BUFFER (GST_GOO_VIDEODEC(self)->video_header))
+	if (GST_IS_BUFFER (GST_GOO_VIDEODEC720P(self)->video_header))
 	{
 		GST_DEBUG_OBJECT (self, "Adding H.264 header info to buffer");
 
@@ -116,7 +116,7 @@ gst_goo_dech264_720p_codec_data_processing (GstGooVideoFilter *filter, GstBuffer
 		GstBuffer *new_buf;
 	        guint size, NAL_size, Buf_offset, Header_size; 	// JC@092008 Variables for changing the NAL segments headers
 
-		buff = GST_BUFFER_DATA (GST_GOO_VIDEODEC(self)->video_header);
+		buff = GST_BUFFER_DATA (GST_GOO_VIDEODEC720P(self)->video_header);
 
 		/* TODO: verify header == 1 */
 		index++;
@@ -557,7 +557,7 @@ gst_goo_dech264_720p_init (GstGooDecH264720p* self, GstGooDecH264720pClass* klas
 	GooComponent* component = GST_GOO_VIDEO_FILTER (self)->component;
 
 	/* Select Stream mode operation as default */
-	g_object_set (G_OBJECT (component), "process-mode", GOO_TI_VIDEO_DECODER_FRAMEMODE, NULL);
+	g_object_set (G_OBJECT (component), "process-mode", GOO_TI_VIDEO_DECODER720P_FRAMEMODE, NULL);
 
 	/* input port */
 	GST_GOO_VIDEO_FILTER (self)->inport = goo_component_get_port (component, "input0");

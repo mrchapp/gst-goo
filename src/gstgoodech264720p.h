@@ -23,7 +23,7 @@
 #ifndef __GST_GOO_DECH264720P_H__
 #define __GST_GOO_DECH264720P_H__
 
-#include "gstgoovideodec.h"
+#include "gstgoovideodec720p.h"
 #include <goo-ti-h264dec-720p.h>
 
 G_BEGIN_DECLS
@@ -48,13 +48,13 @@ typedef struct _GstGooDecH264720pPrivate GstGooDecH264720pPrivate;
 
 struct _GstGooDecH264720p
 {
-	GstGooVideoDec parent;
+	GstGooVideoDec720p parent;
 
 };
 
 struct _GstGooDecH264720pClass
 {
-        GstGooVideoDecClass parent_class;
+        GstGooVideoDec720pClass parent_class;
 };
 
 GType gst_goo_dech264_720p_get_type (void);
