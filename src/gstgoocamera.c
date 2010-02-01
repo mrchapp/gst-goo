@@ -83,7 +83,7 @@ struct _GstGooCameraPrivate
 	gint fps_n, fps_d;
 	gboolean vstab;
 	gint zoom;
-	gboolean autofocus;
+	gint focus;
 };
 
 static const GstElementDetails details =
@@ -118,11 +118,11 @@ ResolutionInfo maxres;
 #define BALANCE_DEFAULT            OMX_WhiteBalControlAuto
 #define EXPOSURE_DEFAULT   		   OMX_ExposureControlAuto
 #define ZOOM_DEFAULT               GOO_TI_CAMERA_ZOOM_1X
-#define CONTRAST_DEFAULT	       -70
-#define BRIGHTNESS_DEFAULT	       10
+#define CONTRAST_DEFAULT	       0
+#define BRIGHTNESS_DEFAULT	       50
 #define DISPLAY_ROTATION_DEFAULT   GOO_TI_POST_PROCESSOR_ROTATION_NONE
 #define VSTAB_DEFAULT              FALSE
-#define FOCUS_DEFAULT              FALSE
+#define FOCUS_DEFAULT              OMX_CameraConfigFocusAuto
 #define CONTRAST_LABEL		   "Contrast"
 #define BRIGHTHNESS_LABEL	   "Brightness"
 
@@ -817,19 +817,18 @@ no_enc:
 		g_object_set (self->camera, "vstab", TRUE, NULL);
 	}
 
-	if (priv->autofocus == TRUE)
 	{
-		GST_INFO_OBJECT (self, "enabling autofocus");
-		g_object_set (self->camera,"focus", priv->autofocus, NULL);
-	}
-
-	{
-		GST_INFO_OBJECT (self, "seeting zoom");
+		GST_INFO_OBJECT (self, "seeting zoom = %d",priv->zoom);
 		g_object_set (self->camera,"zoom", priv->zoom, NULL);
 	}
 
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
+
+	{
+		GST_INFO_OBJECT (self, "seeting focus = %d",priv->focus);
+		g_object_set (self->camera,"focus", priv->focus, NULL);
+	}
 
 	if (component != NULL)
 	{
@@ -1205,7 +1204,10 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 				       "exposure", value);
 		break;
 	case PROP_FOCUS:
-		priv->autofocus = g_value_get_boolean (value);
+		priv->focus = g_value_get_enum (value);
+		/*g_object_set_property (G_OBJECT (self->camera),
+				       "focus", value);
+		*/
 		break;
 	case PROP_VSTAB:
 		priv->vstab = g_value_get_boolean (value);
@@ -1279,7 +1281,7 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 				       "exposure", value);
 		break;
 	case PROP_FOCUS:
-		g_value_set_boolean (value, priv->autofocus);
+		g_object_get_property (G_OBJECT (self->camera),"focus", value);
 		break;
 	case PROP_VSTAB:
 		g_value_set_boolean (value, priv->vstab);
@@ -1510,7 +1512,7 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 
 	{
 		/* global constant */
-		maxres = goo_get_resolution ("vga");
+		maxres = goo_get_resolution ("720p");
 
 	}
 
@@ -1581,7 +1583,7 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 
 	spec = g_param_spec_int ("brightness", "Brightness",
 				 "Set the brightness value",
-				 0, 100, BRIGHTNESS_DEFAULT,
+				 -100, 100, BRIGHTNESS_DEFAULT,
 				 G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_BRIGHTNESS, spec);
 
@@ -1611,9 +1613,10 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 				  EXPOSURE_DEFAULT,  G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_EXPOSURE, spec);
 
-	spec = g_param_spec_boolean ("focus",
+	spec = g_param_spec_enum ("focus",
 				  "Focus control",
-				  "Set/Get the autofocus mode ",
+				  "Set the autofocus mode ",
+				  GOO_TI_CAMERA_MODE_FOCUS,
 				  FOCUS_DEFAULT, G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_FOCUS, spec);
 
@@ -1656,7 +1659,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->display_height = DISPLAY_HEIGHT_DEFAULT;
 		priv->capture = FALSE;
 		priv->vstab = VSTAB_DEFAULT;
-		priv->autofocus = FOCUS_DEFAULT;
+		priv->focus = FOCUS_DEFAULT;
 		priv->zoom = ZOOM_DEFAULT;
 	}
 
@@ -1676,7 +1679,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		/* brightness */
 		channel = g_object_new (GST_TYPE_COLOR_BALANCE_CHANNEL, NULL);
 		channel->label = g_strdup (BRIGHTHNESS_LABEL);
-		channel->min_value = 0;
+		channel->min_value = -100;
 		channel->max_value = 100;
 		self->channels = g_list_append (self->channels, channel);
 	}
