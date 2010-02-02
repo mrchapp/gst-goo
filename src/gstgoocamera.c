@@ -67,7 +67,8 @@ enum
 	PROP_BALANCE,
 	PROP_EXPOSURE,
 	PROP_VSTAB,
-	PROP_FOCUS
+	PROP_FOCUS,
+	PROP_EFFECTS
 };
 
 #define GST_GOO_CAMERA_GET_PRIVATE(obj) (GST_GOO_CAMERA (obj)->priv)
@@ -79,11 +80,12 @@ struct _GstGooCameraPrivate
 	guint outcount;
 	guint display_height;
 	guint display_width;
-	gboolean capture;
+	guint capture;
 	gint fps_n, fps_d;
 	gboolean vstab;
 	gint zoom;
 	gint focus;
+	gint effects;
 };
 
 static const GstElementDetails details =
@@ -123,6 +125,7 @@ ResolutionInfo maxres;
 #define DISPLAY_ROTATION_DEFAULT   GOO_TI_POST_PROCESSOR_ROTATION_NONE
 #define VSTAB_DEFAULT              FALSE
 #define FOCUS_DEFAULT              OMX_CameraConfigFocusAuto
+#define EFFECTS_DEFAULT			   OMX_CameraConfigEffectsNormal
 #define CONTRAST_LABEL		   "Contrast"
 #define BRIGHTHNESS_LABEL	   "Brightness"
 
@@ -830,6 +833,10 @@ no_enc:
 		g_object_set (self->camera,"focus", priv->focus, NULL);
 	}
 
+	{
+		GST_INFO_OBJECT (self, "seeting color effects = %d",priv->effects);
+		g_object_set (self->camera,"effects", priv->effects, NULL);
+	}
 	if (component != NULL)
 	{
 		g_object_unref (component);
@@ -1205,12 +1212,12 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 		break;
 	case PROP_FOCUS:
 		priv->focus = g_value_get_enum (value);
-		/*g_object_set_property (G_OBJECT (self->camera),
-				       "focus", value);
-		*/
 		break;
 	case PROP_VSTAB:
 		priv->vstab = g_value_get_boolean (value);
+		break;
+	case PROP_EFFECTS:
+		priv->effects = g_value_get_enum (value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1273,18 +1280,19 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 		g_object_get_property (G_OBJECT (self->camera),"zoom", value);
 		break;
 	case PROP_BALANCE:
-		g_object_get_property (G_OBJECT (self->camera),
-				       "balance", value);
+		g_object_get_property (G_OBJECT (self->camera),"balance", value);
 		break;
 	case PROP_EXPOSURE:
-		g_object_get_property (G_OBJECT (self->camera),
-				       "exposure", value);
+		g_object_get_property (G_OBJECT (self->camera),"exposure", value);
 		break;
 	case PROP_FOCUS:
 		g_object_get_property (G_OBJECT (self->camera),"focus", value);
 		break;
 	case PROP_VSTAB:
 		g_value_set_boolean (value, priv->vstab);
+		break;
+	case PROP_EFFECTS:
+		g_object_get_property (G_OBJECT (self->camera),"effects", value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1626,6 +1634,14 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 				     G_PARAM_READWRITE | G_PARAM_CONSTRUCT);
 	g_object_class_install_property (g_klass, PROP_VSTAB, spec);
 
+	spec = g_param_spec_enum ("effects",
+				  "Color effects",
+				  "Set/Get the color effects",
+				  GOO_TI_CAMERA_EFFECTS,
+				  EFFECTS_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_EFFECTS, spec);
+
+
 	/* GST stuff */
 	p_klass = GST_PUSH_SRC_CLASS (klass);
 	p_klass->create = GST_DEBUG_FUNCPTR (gst_goo_camera_create);
@@ -1661,6 +1677,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->vstab = VSTAB_DEFAULT;
 		priv->focus = FOCUS_DEFAULT;
 		priv->zoom = ZOOM_DEFAULT;
+		priv->effects = EFFECTS_DEFAULT;
 	}
 
 	/* color balance */
