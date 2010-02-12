@@ -86,6 +86,7 @@ struct _GstGooCameraPrivate
 	gint zoom;
 	gint focus;
 	gint effects;
+	gint exposure;
 };
 
 static const GstElementDetails details =
@@ -820,13 +821,13 @@ no_enc:
 		g_object_set (self->camera, "vstab", TRUE, NULL);
 	}
 
+	GST_INFO_OBJECT (self, "camera: going to executing");
+	goo_component_set_state_executing (self->camera);
+
 	{
 		GST_INFO_OBJECT (self, "seeting zoom = %d",priv->zoom);
 		g_object_set (self->camera,"zoom", priv->zoom, NULL);
 	}
-
-	GST_INFO_OBJECT (self, "camera: going to executing");
-	goo_component_set_state_executing (self->camera);
 
 	{
 		GST_INFO_OBJECT (self, "seeting focus = %d",priv->focus);
@@ -836,6 +837,11 @@ no_enc:
 	{
 		GST_INFO_OBJECT (self, "seeting color effects = %d",priv->effects);
 		g_object_set (self->camera,"effects", priv->effects, NULL);
+	}
+
+	{
+		GST_INFO_OBJECT (self, "seeting exposure = %d",priv->exposure);
+		g_object_set (self->camera,"exposure", priv->exposure, NULL);
 	}
 	if (component != NULL)
 	{
@@ -1207,8 +1213,7 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 				       "balance", value);
 		break;
 	case PROP_EXPOSURE:
-		g_object_set_property (G_OBJECT (self->camera),
-				       "exposure", value);
+		priv->exposure = g_value_get_enum (value);
 		break;
 	case PROP_FOCUS:
 		priv->focus = g_value_get_enum (value);
@@ -1678,6 +1683,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->focus = FOCUS_DEFAULT;
 		priv->zoom = ZOOM_DEFAULT;
 		priv->effects = EFFECTS_DEFAULT;
+		priv->exposure = EXPOSURE_DEFAULT;
 	}
 
 	/* color balance */
