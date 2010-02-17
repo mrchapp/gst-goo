@@ -28,6 +28,7 @@
 #include "gstgoosem.h"
 #include <gst/gst.h>
 #include <goo-ti-video-decoder.h>
+#include <goo-ti-video-decoder720p.h>
 #include <goo-ti-post-processor.h>
 #include "gstgooutils.h"
 

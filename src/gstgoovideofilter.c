@@ -126,6 +126,9 @@ struct _GstGooVideoFilterPrivate
 	g_free (strcaps);				\
 }
 
+#define GST_GOO_IS_TI_VIDEO_DECODER(obj) \
+	(GOO_IS_TI_VIDEO_DECODER(obj) || GOO_IS_TI_VIDEO_DECODER720P(obj))
+
 /**
  * gst_goo_video_filter_outport_buffer:
  * @port: A #GooPort instance
@@ -397,7 +400,7 @@ gst_goo_video_filter_setup_tunnel (GstGooVideoFilter *self)
 
 	GST_INFO ("");
 
-	if (!GOO_IS_TI_VIDEO_DECODER(self->component))
+	if (!GST_GOO_IS_TI_VIDEO_DECODER(self->component))
 	{
 		GST_INFO ("Tunneling only implemented for goo video decoders");
 		return FALSE;
