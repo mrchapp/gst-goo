@@ -147,6 +147,7 @@ gst_goo_dech264_720p_codec_data_processing (GstGooVideoFilter *filter, GstBuffer
 				Header_size=2;
 				break;
 			case 4:
+				g_object_set (G_OBJECT (component), "NALU-byte-type", GOO_TI_H264DEC720P_NALU_BYTES_TYPE_4B, NULL);
 				Header_size=4;
 				break;
 			default:
