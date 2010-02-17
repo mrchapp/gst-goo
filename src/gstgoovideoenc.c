@@ -343,7 +343,8 @@ omx_sync (GstGooVideoEnc* self, guint color_format, guint width, guint height, g
 
 		param->format.video.nFrameWidth = width;
 		param->format.video.nFrameHeight = height;
-
+		param->format.video.xFramerate = framerate << 16;
+		GST_DEBUG_OBJECT (self, "framerate = %d; xFramerate = %d", framerate, param->format.video.xFramerate);
 	}
 
 	return TRUE;

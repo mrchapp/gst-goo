@@ -752,6 +752,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 
 							param_out->format.video.nFrameWidth =   width;
 							param_out->format.video.nFrameHeight =	height;
+							param_out->format.video.xFramerate = (fps_n / fps_d) << 16;
 
 							GST_INFO_OBJECT (self, "setting up tunnel with video encoder ");
 							goo_component_set_tunnel_by_name (self->camera, "output1",
