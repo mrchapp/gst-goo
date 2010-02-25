@@ -965,6 +965,8 @@ process_output:
 	}
 
 done:
+
+	gst_goo_util_post_message (GST_ELEMENT (self), "filtervpp_chain");
 	GST_DEBUG ("");
 	gst_object_unref (self);
 	return ret;

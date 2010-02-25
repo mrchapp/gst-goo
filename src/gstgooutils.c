@@ -592,3 +592,49 @@ gst_goo_util_ensure_executing (GooComponent *component)
 		goo_component_set_state_executing (component);
 	}
 }
+
+/**
+ * Utility function which post a message of type (GST_MESSAGE_ELEMENT)
+ * with a @structure_name. The field type would be set to G_TYPE_DOUBLE, and its value
+ * will be obtained using g_get_current_time
+ *
+ * @element the component
+ * @structure_name
+ */
+
+void
+gst_goo_util_post_message (GstElement* self,
+							gchar* structure_name)
+{
+
+  GstMessage *msg = NULL;
+  GstStructure *stru = NULL;
+  gchar *str_timestamp = NULL;
+
+  gdouble timestamp;
+  GTimeVal current_time;
+
+  /* Get the current time */
+  g_get_current_time(&current_time);
+  timestamp = current_time.tv_sec + current_time.tv_usec/1e6;
+  str_timestamp = g_strdup_printf("%f",timestamp);
+
+  if(structure_name)
+  {
+	stru = gst_structure_new(structure_name,
+	                         "timestamp",
+	                         G_TYPE_STRING,
+	                         str_timestamp,
+	                         NULL);
+  }
+
+  /* Create the message and send it to the bus */
+  msg = gst_message_new_custom (GST_MESSAGE_ELEMENT, GST_OBJECT (self), stru);
+
+  g_assert ( gst_element_post_message (GST_ELEMENT(self), msg));
+
+  g_free ( str_timestamp );
+  return;
+}
+
+

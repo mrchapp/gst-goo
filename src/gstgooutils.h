@@ -48,6 +48,8 @@ gboolean   gst_goo_event_is_reverse_eos (GstEvent *evt);
 
 void gst_goo_util_ensure_executing (GooComponent *component);
 
+void gst_goo_util_post_message (GstElement* self, gchar* structure_name);
+
 
 #define PRINT_BUFFER(buffer)  \
 	GST_DEBUG (#buffer "=0x%08x (time=%"GST_TIME_FORMAT", duration=%"GST_TIME_FORMAT", flags=%08x)", (buffer), GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buffer)), GST_TIME_ARGS (GST_BUFFER_DURATION(buffer)), GST_BUFFER_FLAGS (buffer));

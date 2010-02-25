@@ -1421,48 +1421,6 @@ gst_goo_camera_print_verbose_state_change(GstStateChange transition)
 	return;
 }
 
-/**
- * Utility function which post a message of type (GST_MESSAGE_ELEMENT)
- * with a @structure_name. The field type would be set to G_TYPE_DOUBLE, and its value
- * will be obtained using g_get_current_time
- *
- * @element the component
- * @structure_name
- */
-
-void
-gst_goo_camera_post_timestamp(GstGooCamera* self,
-							gchar* structure_name)
-{
-
-  GstMessage *msg = NULL;
-  GstStructure *stru = NULL;
-  gdouble timestamp;
-  gchar *str_timestamp;
-  GTimeVal current_time;
-
-  /* Get the current time */
-  g_get_current_time(&current_time);
-  timestamp = current_time.tv_sec + current_time.tv_usec/1e6;
-  str_timestamp = g_strdup_printf("%f",timestamp);
-
-  if(structure_name)
-  {
-	stru = gst_structure_new(structure_name,
-	                         "timestamp",
-	                         G_TYPE_STRING,
-	                         str_timestamp,
-	                         NULL);
-  }
-
-  /* Create the message and send it to the bus */
-  msg = gst_message_new_custom (GST_MESSAGE_ELEMENT, GST_OBJECT (self), stru);
-
-  g_assert(gst_element_post_message (GST_ELEMENT(self), msg));
-  GST_INFO_OBJECT(self, "Sended messge with a timestamp %f", timestamp);
-  return;
-}
-
 static GstStateChangeReturn
 gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 {
@@ -1479,7 +1437,7 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 	/* Send a message with the timestamp of the component's state change */
 	gchar *structure_name;
 	structure_name = g_strdup_printf("%s_%d", "camera_transition",transition);
-	gst_goo_camera_post_timestamp(self, structure_name);
+	gst_goo_util_post_message ( GST_ELEMENT (self), structure_name);
 	g_free(structure_name);
 
 	switch (transition)
