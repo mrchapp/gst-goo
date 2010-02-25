@@ -41,6 +41,7 @@
 #include "gstgooencgsmfr.h"
 #include "gstgooencaac.h"
 #include "gstgoodecmpeg4.h"
+#include "gstgoodecmpeg4720p.h"
 #include "gstgoodecspark.h"
 #include "gstdasfsrc.h"
 #include "gstdasfsink.h"
@@ -87,6 +88,7 @@ static struct _element_entry _elements[] = {
 	{ "gooenc_gsmfr", GST_RANK_PRIMARY, gst_goo_encgsmfr_get_type },
 	{ "gooenc_aac", GST_RANK_PRIMARY, gst_goo_encaac_get_type },
 	{ "goodec_mpeg4", GST_RANK_PRIMARY, gst_goo_decmpeg4_get_type },
+	{ "goodec_mpeg4_720p", GST_RANK_PRIMARY, gst_goo_decmpeg4_720p_get_type },
 	{ "goodec_spark", GST_RANK_PRIMARY, gst_goo_decspark_get_type },
 	{ "dasfsrc", GST_RANK_PRIMARY, gst_dasf_src_get_type },
 	{ "dasfsink", GST_RANK_PRIMARY, gst_dasf_sink_get_type },

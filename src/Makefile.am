@@ -28,6 +28,7 @@ libgstgoo_la_SOURCES = \
 	gstdasfsink.c \
 	gstgoo.c \
 	gstgoodecmpeg4.c \
+	gstgoodecmpeg4720p.c \
 	gstgoodecspark.c \
 	gstgoosem.c \
 	gstgooadapter.c \
@@ -93,6 +94,7 @@ noinst_HEADERS = \
 	gstdasfsrc.h \
 	gstdasfsink.h \
 	gstgoodecmpeg4.h \
+	gstgoodecmpeg4720p.h \
 	gstgoodecspark.h \
 	gstgoosem.h \
 	gstgooadapter.h \
