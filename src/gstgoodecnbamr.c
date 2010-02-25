@@ -335,9 +335,10 @@ gst_goo_decnbamr_change_state (GstElement* element, GstStateChange transition)
         if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
 		(gNbAmr->mimo_mode == TRUE))
         {
-            GooTiAudioManager* gAm;
+            GooTiAudioManager* gAm = NULL;
             gint ret;
-
+            gAm =  GOO_TI_AUDIO_COMPONENT (self->component)->manager;
+            g_assert (gAm != NULL);
             gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
             gAm->cmd->param1 = 8000;
             gAm->cmd->param2 = 6;

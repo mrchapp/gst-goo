@@ -427,16 +427,18 @@ gst_goo_decaac_change_state (GstElement* element, GstStateChange transition)
         if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
                 (gAac->mimo_mode >= 4))
         {
-            GooTiAudioManager* gAm;
+            GooTiAudioManager* gAm =NULL;
             OMX_AUDIO_PARAM_PCMMODETYPE *param;
             gint ret;
-
             param = GOO_TI_AACDEC_GET_INPUT_PORT_PARAM (self->component);
+            gAm =  GOO_TI_AUDIO_COMPONENT (self->component)->manager;
+            g_assert (gAm != NULL);
             gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
             gAm->cmd->param1 = param->nSamplingRate;
             gAm->cmd->param2 = gAac->out_device;
             ret = write (gAm->fdwrite, gAm->cmd, sizeof (AM_COMMANDDATATYPE));
             g_assert (ret ==  sizeof (AM_COMMANDDATATYPE));
+
         }
         break;
     case GST_STATE_CHANGE_PAUSED_TO_PLAYING:

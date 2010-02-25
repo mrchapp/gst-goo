@@ -662,9 +662,10 @@ gst_goo_encaac_change_state (GstElement* element, GstStateChange transition)
 			if (GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle &&
 					(self->mimo_mode == TRUE))
 			{
-			    GooTiAudioManager* gAm;
+			    GooTiAudioManager* gAm=NULL;
 			    gint ret;
-
+			    gAm =  GOO_TI_AUDIO_COMPONENT (self->component)->manager;
+			    g_assert (gAm != NULL);
 			    gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
 			    gAm->cmd->param1 = 8000;
 			    gAm->cmd->param2 = 5;

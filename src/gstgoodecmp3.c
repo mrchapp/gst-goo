@@ -374,11 +374,13 @@ gst_goo_decmp3_change_state (GstElement* element, GstStateChange transition)
 	    if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
 	            (gMp3->mimo_mode >= 4))
 	    {
-	        GooTiAudioManager* gAm;
+	        GooTiAudioManager* gAm = NULL;
 	        OMX_AUDIO_PARAM_PCMMODETYPE *param;
 	        gint ret;
 
 	        param = GOO_TI_MP3DEC_GET_OUTPUT_PARAM (self->component);
+	        gAm =  GOO_TI_AUDIO_COMPONENT (self->component)->manager;
+	        g_assert (gAm != NULL);
 	        gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
 	        gAm->cmd->param1 = param->nSamplingRate;
 	        gAm->cmd->param2 = gMp3->out_device;
