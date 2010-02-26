@@ -245,9 +245,12 @@ gst_dasf_clock_required (GstDasfSink* self)
 	guint retvalue = 0;
 	GooTiPostProcessor *peer_component = NULL;
 
-	GooTiVideoDecoder *video_decoder = GOO_TI_VIDEO_DECODER (
-			gst_goo_util_find_goo_component (GST_ELEMENT(self), GOO_TYPE_TI_VIDEO_DECODER)
-		);
+	GooObject *video_decoder = GOO_OBJECT (gst_goo_util_find_goo_component (
+		GST_ELEMENT (self), GOO_TYPE_TI_VIDEO_DECODER));
+
+	if (video_decoder == NULL) video_decoder = GOO_OBJECT (
+		gst_goo_util_find_goo_component (GST_ELEMENT (self),
+		GOO_TYPE_TI_VIDEO_DECODER720P));
 
 	if(video_decoder == NULL)
 		goto done;
