@@ -49,7 +49,8 @@ libgstgoo_la_SOURCES = \
     gstgoovideodec720p.c \    
 	gstgoovideoenc.c \
 	gstgooutils.c \
-	gstgoodecgsmfr.c
+	gstgoodecgsmfr.c \
+	gstgoovideoenc720p.c
 
 libgstgoo_la_CFLAGS = \
 	$(GST_CFLAGS) \
@@ -115,7 +116,8 @@ noinst_HEADERS = \
     gstgoovideodec720p.h \    
 	gstgoovideoenc.h \
 	gstgooutils.h \
-	gstgoodecgsmfr.h
+	gstgoodecgsmfr.h \
+	gstgoovideoenc720p.h
 
 if WITH_TI_CAMERA
 libgstgoo_la_SOURCES += gstgoocamera.c
