@@ -55,6 +55,7 @@
 #include "gstgoodech263.h"
 #include "gstgoodecwmv.h"
 #include "gstgooencmpeg4.h"
+#include "gstgooencmpeg4720p.h"
 #include "gstgooench264.h"
 #include "gstgooench263.h"
 #include "gstgoosinkpp.h"
@@ -102,6 +103,7 @@ static struct _element_entry _elements[] = {
 	{ "goodec_h263", GST_RANK_PRIMARY, gst_goo_dech263_get_type },
 	{ "goodec_wmv", GST_RANK_PRIMARY, gst_goo_decwmv_get_type },
 	{ "gooenc_mpeg4", GST_RANK_PRIMARY, gst_goo_encmpeg4_get_type },
+	{ "gooenc_mpeg4_720p", GST_RANK_PRIMARY, gst_goo_encmpeg4_720p_get_type },
 	{ "gooenc_h264", GST_RANK_PRIMARY, gst_goo_ench264_get_type },
 	{ "gooenc_h263", GST_RANK_PRIMARY, gst_goo_ench263_get_type },
 	{ "goosink_pp", GST_RANK_PRIMARY, gst_goo_sinkpp_get_type },
