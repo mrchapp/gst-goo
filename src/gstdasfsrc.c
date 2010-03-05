@@ -346,13 +346,27 @@ gst_dasf_src_create (GstAudioSrc *audiosrc,
 	*buffer = gst_buffer;
 	return GST_FLOW_OK;
 
-fail:
-	if (G_LIKELY (*buffer))
+}
+
+static gboolean
+gst_goo_dasf_src_src_event (GstPad *pad, GstEvent *event)
+{
+	g_assert (pad);
+	g_assert (event);
+
+	GST_INFO ("dasfsrc %s", GST_EVENT_TYPE_NAME (event));
+	gboolean ret;
+
+	switch (GST_EVENT_TYPE (event))
 	{
-		gst_buffer_unref (*buffer);
+		case GST_EVENT_EOS:
+			GST_INFO ("EOS event");
+		default:
+			ret = gst_pad_event_default (pad, event);
+			break;
 	}
 
-	return GST_FLOW_ERROR;
+	return ret;
 }
 
 
@@ -563,10 +577,13 @@ gst_dasf_src_init (GstDasfSrc* self, GstDasfSrcClass* klass)
 	track->flags = GST_MIXER_TRACK_MASTER | GST_MIXER_TRACK_MUTE;
 	self->tracks = g_slist_append (self->tracks, track);
 
+	gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
+
+	gst_pad_set_event_function (GST_BASE_SRC (self)->srcpad,
+		GST_DEBUG_FUNCPTR (gst_goo_dasf_src_src_event));
+
 	return;
 }
-
-
 
 static GstClockTime
 gst_dasf_src_get_time (GstClock * clock, GstDasfSrc * src)
