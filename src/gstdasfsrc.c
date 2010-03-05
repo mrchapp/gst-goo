@@ -563,7 +563,9 @@ gst_dasf_src_init (GstDasfSrc* self, GstDasfSrcClass* klass)
 	priv->volume = 100;
 	priv->mute = FALSE;
 
+#if 0
 	baseaudiosrc->clock = gst_audio_clock_new ("GstDasfSrcClock", (GstAudioClockGetTimeFunc) gst_dasf_src_get_time, self);
+#endif
 
 	self->component = NULL;
 
