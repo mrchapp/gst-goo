@@ -25,8 +25,10 @@
 #endif
 
 #include <gst/interfaces/mixer.h>
+#include <goo-ti-audio-component.h>
 #include "gstdasfsrc.h"
 #include "gstgoobuffer.h"
+#include "gstgooutils.h"
 #include <string.h>
 
 #define NUM_OUTPUT_BUFFERS_DEFAULT 1
@@ -185,157 +187,26 @@ static void
 gst_dasf_enable (GstDasfSrc* self)
 {
 	GST_INFO ("");
-	GstPad *peer;
-	GstElement *next_element;
-	GooComponent *component;
-	GstBaseSrc *base_src;
 
-  if (self->component != NULL)
-	{
-		return;
-	}
+	self->component = gst_goo_util_find_goo_component (
+		GST_ELEMENT (self), GOO_TYPE_TI_AUDIO_COMPONENT);
 
-  GST_INFO("Get the peer (=pad from the next element)");
-	peer = gst_pad_get_peer (GST_BASE_SRC_PAD (self));
+	GST_INFO ("Audio component found %x", self->component);
 
-	if (G_UNLIKELY (peer == NULL))
-	{
-		GST_INFO ("No next pad");
-		return;
-	}
-
-	next_element = GST_ELEMENT (gst_pad_get_parent (peer));
-
-	if (G_UNLIKELY (next_element == NULL))
-	{
-		GST_INFO ("Cannot find a next element");
-		goto done;
-	}
-
-	/** expecting a capsfilter between dasfsrc and goo audio component **/
-	while (GST_IS_BASE_TRANSFORM (next_element))
-	{
-		GST_DEBUG_OBJECT(self, "next element name: %s", gst_element_get_name (next_element));
-
-		gst_object_unref (peer);
-		peer = gst_pad_get_peer (GST_BASE_TRANSFORM_SRC_PAD (next_element));
-		gst_object_unref (next_element);
-		next_element = GST_ELEMENT(gst_pad_get_parent (peer)) ;
-
-		GST_DEBUG_OBJECT (self, "one after element name: %s", gst_element_get_name(next_element));
-	}
-
-	/** capsfilter might be found
-	 *  element next to the caps filter should be goo **/
-
-	component = GOO_COMPONENT (g_object_get_data
-							   (G_OBJECT (next_element), "goo"));
-
-	if (G_UNLIKELY (component == NULL))
-	{
-		GST_INFO ("Previous element does not have a Goo component");
-		goto done;
-	}
-
-	if (!GOO_IS_TI_AUDIO_COMPONENT (component))
-	{
-		GST_WARNING ("The component in previous element is not TI Audio");
-		goto done;
-	}
-
-	self->component = GOO_TI_AUDIO_COMPONENT (component);
+	g_assert (self->component);
 
 	GST_INFO("Changing to DASF mode");
 	goo_ti_audio_component_set_dasf_mode (self->component, TRUE);
 
-	GST_INFO("Seting data path");
 	GST_DEBUG_OBJECT (self, "set data path");
 	goo_ti_audio_component_set_data_path (self->component, 0);
 
-	/** getting num-buffers from base src **/
-	base_src = GST_BASE_SRC (self);
-	GST_INFO("Number of buffers to be used %d",base_src->num_buffers);
-
-	GST_INFO("Setting the number of buffers to be used by %s",gst_element_get_name(next_element));
-	goo_ti_audio_encoder_set_number_buffers (GOO_TI_AUDIO_ENCODER (component), base_src->num_buffers);
-
 done:
-	gst_object_unref (peer);
-	gst_object_unref (next_element);
 
-	GST_DEBUG_OBJECT (self, "peer refcount = %d",
-			  G_OBJECT (peer)->ref_count);
-
-	GST_DEBUG_OBJECT (self, "next element refcount = %d",
-			  G_OBJECT (next_element)->ref_count);
 
 	return;
 }
 
-static void
-gst_dasf_change_peer_omx_state (GstDasfSrc* self)
-{
-	GST_INFO ("");
-	GstPad *peer;
-	GstElement *next_element;
-	GooComponent *component;
-	GstBaseSrc *base_src;
-
-	peer = gst_pad_get_peer (GST_BASE_SRC_PAD (self));
-
-	if (G_UNLIKELY (peer == NULL))
-	{
-		GST_INFO ("No next pad");
-		return;
-	}
-
-	next_element = GST_ELEMENT (gst_pad_get_parent (peer));
-
-	if (G_UNLIKELY (next_element == NULL))
-	{
-		GST_INFO ("Cannot find a next element");
-		gst_object_unref (next_element);
-		return;
-	}
-
-	/** expecting a capsfilter between dasfsrc and goo audio component **/
-	while (GST_IS_BASE_TRANSFORM (next_element))
-	{
-		GST_DEBUG_OBJECT(self, "next element name: %s", gst_element_get_name (next_element));
-
-		gst_object_unref (peer);
-		peer = gst_pad_get_peer (GST_BASE_TRANSFORM_SRC_PAD (next_element));
-		gst_object_unref (next_element);
-		next_element = GST_ELEMENT(gst_pad_get_parent (peer)) ;
-
-		GST_DEBUG_OBJECT (self, "one after element name: %s", gst_element_get_name(next_element));
-	}
-
-	/** capsfilter might be found
-	 *  element next to the caps filter should be goo **/
-
-	component = GOO_COMPONENT (g_object_get_data
-							   (G_OBJECT (next_element), "goo"));
-
-	if (G_UNLIKELY (component == NULL))
-	{
-		GST_INFO ("Previous element does not have a Goo component");
-		gst_object_unref (peer);
-		gst_object_unref (next_element);
-		return;
-	}
-
-	if (!GOO_IS_TI_AUDIO_COMPONENT (component))
-	{
-		GST_WARNING ("The component in previous element is not TI Audio");
-		gst_object_unref (peer);
-		gst_object_unref (next_element);
-		return;
-	}
-
-	return;
-
-}
 
 /** This group of functions need to be overriden so that the ring
  * buffer becomes useless in our implementation**/
@@ -457,23 +328,10 @@ gst_dasf_src_create (GstAudioSrc *audiosrc,
 	gst_buffer_set_caps (gst_buffer,
 				     GST_PAD_CAPS (GST_BASE_SRC_PAD (self)));
 
-	GST_DEBUG_OBJECT (self,"timestamp and duration calculation");
-	{
-		GST_BUFFER_TIMESTAMP (gst_buffer) =
-				gst_util_uint64_scale_int (GST_SECOND,
-																		priv->outcount,
-																		50);
-
-		/* Set 20 millisecond duration */
-		GST_BUFFER_DURATION (gst_buffer) =
-					gst_util_uint64_scale_int (GST_SECOND, 1, 50);
-
-		GST_DEBUG ( "timestamp: %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)));
-		GST_DEBUG ( "duration: %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DURATION (gst_buffer)));
-
-	}
-
 	priv->outcount++;
+
+	GST_BUFFER_TIMESTAMP (gst_buffer) = GST_CLOCK_TIME_NONE;
+	GST_BUFFER_DURATION (gst_buffer) = GST_CLOCK_TIME_NONE;
 
 	GST_DEBUG_OBJECT(self,"setting the offset");
 	{
@@ -541,12 +399,6 @@ gst_dasf_src_change_state (GstElement* element, GstStateChange transition)
     {
       gst_dasf_enable (self);
       break;
-    }
-
-		case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-		{
-		  gst_dasf_change_peer_omx_state (self);
-			break;
     }
     default:
     {
