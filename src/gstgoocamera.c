@@ -32,6 +32,7 @@
 #include <goo-ti-video-encoder.h>
 #include <goo-ti-post-processor.h>
 #include <goo-ti-jpegenc.h>
+#include <goo-ti-audio-component.h>
 #include <goo-utils.h>
 
 #include "gstgoocamera.h"
@@ -812,6 +813,21 @@ no_enc:
 	g_assert (port_pp != NULL);
 	goo_component_set_supplier_port (self->postproc, port_pp, OMX_BufferSupplyInput);
 	gst_object_unref (port_pp);
+
+	GooComponent *audio_component = gst_goo_util_find_goo_component (
+		GST_ELEMENT (self), GOO_TYPE_TI_AUDIO_COMPONENT);
+
+	if (audio_component)
+	{
+		GST_INFO ("audio component found");
+		GooComponent *clock =
+			goo_ti_audio_component_get_clock (audio_component);
+		if (clock)
+		{
+			GST_INFO ("clock found in audio encoder, link it with the camera");
+			goo_ti_camera_set_clock (self->camera, clock);
+		}
+	}
 
 	GST_INFO_OBJECT (self, "going to idle");
 	goo_component_set_state_idle (self->camera);
