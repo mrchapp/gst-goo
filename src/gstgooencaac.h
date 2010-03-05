@@ -62,6 +62,7 @@ struct _GstGooEncAac
 	/* goo composition */
 	GooComponentFactory* factory;
 	GooComponent* component;
+	GooComponent* clock;
 	GooPort* inport;
 	GooPort* outport;
 	guint outcount;

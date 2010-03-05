@@ -28,6 +28,7 @@
 #include <string.h>
 #include <goo-component.h>
 #include <goo-ti-audio-manager.h>
+#include <goo-ti-clock.h>
 
 #if 1
 #include <TIDspOmx.h>
@@ -35,7 +36,7 @@
 
 #include "gstgoobuffer.h"
 #include "gstgooencaac.h"
-
+#include "gstgooutils.h"
 
 #define GST_GOO_TYPE_BITRATEMODE \
 	(goo_ti_aacenc_bitratemode_get_type ())
@@ -348,12 +349,34 @@ omx_start (GstGooEncAac* self)
 
 		GST_INFO_OBJECT (self, "going to idle");
 		goo_component_set_state_idle (self->component);
+
+		if (goo_ti_audio_component_is_dasf_mode (
+			GOO_TI_AUDIO_COMPONENT (self->component)))
+		{
+			GST_INFO ("audio encoder in dasf-mode");
+			GST_INFO ("creating a clock");
+			self->clock = goo_component_factory_get_component (
+				self->factory, GOO_TI_CLOCK);
+			g_assert (self->clock);
+
+			GST_INFO ("set the clock and the stream id in goo ti audio component");
+			goo_ti_audio_component_set_clock (
+				GOO_TI_AUDIO_COMPONENT (self->component),
+				self->clock);
+			goo_component_set_state_idle (self->clock);
+		}
 	}
 
 	if (goo_component_get_state (self->component) == OMX_StateIdle)
 	{
 		GST_INFO_OBJECT (self, "going to executing");
 		goo_component_set_state_executing (self->component);
+
+		if (goo_ti_audio_component_is_dasf_mode (GOO_TI_AUDIO_COMPONENT (self->component)))
+		{
+			goo_component_set_state_executing (self->clock);
+			goo_ti_clock_set_starttime (GOO_TI_CLOCK (self->clock), 0);
+		}
 	}
 	GST_OBJECT_UNLOCK (self);
 
@@ -371,12 +394,24 @@ omx_stop (GstGooEncAac* self)
 	{
 		GST_INFO_OBJECT (self, "going to idle");
 		goo_component_set_state_idle (self->component);
+
+		if (goo_ti_audio_component_is_dasf_mode (GOO_TI_AUDIO_COMPONENT (self->component)))
+		{
+			GST_INFO_OBJECT (self, "clock going to idle");
+			goo_component_set_state_idle (self->clock);
+		}
 	}
 
 	if (goo_component_get_state (self->component) == OMX_StateIdle)
 	{
 		GST_INFO_OBJECT (self, "going to loaded");
 		goo_component_set_state_loaded (self->component);
+
+		if (goo_ti_audio_component_is_dasf_mode (GOO_TI_AUDIO_COMPONENT (self->component)))
+		{
+			GST_INFO_OBJECT (self, "clock going to loaded");
+			goo_component_set_state_loaded (self->clock);
+		}
 	}
 	GST_OBJECT_UNLOCK (self);
 
@@ -468,8 +503,6 @@ gst_goo_encaac_setcaps (GstPad * pad, GstCaps * caps)
 	{
 		goto done;
 	}
-
-	omx_stop (self);
 
 	GST_DEBUG_OBJECT (self, "try getting channels and rate");
 	if (!gst_structure_get_int (structure, "channels", &channels) ||
@@ -576,7 +609,10 @@ gst_goo_encaac_chain (GstPad* pad, GstBuffer* buffer)
 		GST_DEBUG_OBJECT (self, "DASF Source");
 		OMX_BUFFERHEADERTYPE* omxbuf = NULL;
 		omxbuf = goo_port_grab_buffer (self->outport);
-		self->ts = GST_BUFFER_TIMESTAMP (buffer);
+		self->ts = OMX2GST_TIMESTAMP (goo_ti_clock_get_timestamp (
+			GOO_TI_CLOCK (self->clock)));
+		GST_DEBG_OBJECT ("timestamp: %"GST_TIME_FORMAT,
+			GST_TIME_ARGS (self->ts));
 		result = process_output_buffer (self, omxbuf);
 		return result;
 	}
@@ -793,6 +829,12 @@ gst_goo_encaac_dispose (GObject* object)
 		GST_DEBUG ("unrefing component");
 		G_OBJECT(self->component)->ref_count = 1;
 		g_object_unref (self->component);
+	}
+
+	if (G_LIKELY (self->clock != NULL))
+	{
+		GST_DEBUG ("unrefing clock");
+		g_object_unref (self->clock);
 	}
 
 	if (G_LIKELY (self->factory))
