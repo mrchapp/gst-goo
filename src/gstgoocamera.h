@@ -30,6 +30,7 @@
 #include <goo-ti-video-encoder720p.h>
 #include <goo-ti-post-processor.h>
 #include <goo-ti-jpegenc.h>
+#include <goo-ti-audio-component.h>
 #include <goo-utils.h>
 
 #include "gstgoosem.h"
