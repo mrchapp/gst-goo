@@ -180,6 +180,13 @@ GST_BOILERPLATE_FULL (GstGooEncAac, gst_goo_encaac,
 static guint duration_in = 0;
 static guint duration_out = 0;
 
+static gboolean
+gst_goo_encaac_is_dasf_mode (GstGooEncAac *self)
+{
+	g_assert (self);
+	return goo_port_is_tunneled (self->inport);
+}
+
 /* Setting up MIMO mixer modes for the component.
  * The default value will be using DASF mixer value
  * unless it is specified by the MIMO mode.
@@ -241,6 +248,13 @@ process_output_buffer (GstGooEncAac* self, OMX_BUFFERHEADERTYPE* buffer)
 		GST_DEBUG("Compute the duration (constant when Dasf-Mode");
 		duration  = (goo_port_is_tunneled (self->inport))? 	self->duration :
 																												bytes_pending * self->ns_per_byte;
+		if (goo_port_is_tunneled (self->inport))
+		{
+			GST_INFO ("Get the timestamp from the clock (DASF timestamp)");
+			self->ts = OMX2GST_TIMESTAMP (
+				goo_ti_clock_get_timestamp (
+					GOO_TI_CLOCK (self->clock)));
+		}
 
 		GST_BUFFER_DURATION (out) = duration;
 		GST_BUFFER_OFFSET (out) = self->outcount++;
@@ -462,7 +476,7 @@ omx_wait_for_done (GstGooEncAac* self)
 }
 
 static gboolean
-gst_goo_encaac_event (GstPad* pad, GstEvent* event)
+gst_goo_encaac_sink_event (GstPad* pad, GstEvent* event)
 {
 	GstGooEncAac* self = GST_GOO_ENCAAC (gst_pad_get_parent (pad));
 
@@ -610,15 +624,11 @@ gst_goo_encaac_chain (GstPad* pad, GstBuffer* buffer)
 		goto not_negotiated;
 	}
 
-	if (goo_port_is_tunneled (self->inport))
+	if (gst_goo_encaac_is_dasf_mode (self))
 	{
 		GST_DEBUG_OBJECT (self, "DASF Source");
 		OMX_BUFFERHEADERTYPE* omxbuf = NULL;
 		omxbuf = goo_port_grab_buffer (self->outport);
-		self->ts = OMX2GST_TIMESTAMP (goo_ti_clock_get_timestamp (
-			GOO_TI_CLOCK (self->clock)));
-		GST_DEBG_OBJECT ("timestamp: %"GST_TIME_FORMAT,
-			GST_TIME_ARGS (self->ts));
 		result = process_output_buffer (self, omxbuf);
 		return result;
 	}
@@ -964,7 +974,7 @@ gst_goo_encaac_init (GstGooEncAac* self, GstGooEncAacClass *klass)
 			 GST_DEBUG_FUNCPTR (gst_goo_encaac_setcaps));
 		gst_pad_set_event_function
 			(self->sinkpad,
-			 GST_DEBUG_FUNCPTR (gst_goo_encaac_event));
+			 GST_DEBUG_FUNCPTR (gst_goo_encaac_sink_event));
 		gst_pad_set_chain_function
 			(self->sinkpad,
 			 GST_DEBUG_FUNCPTR (gst_goo_encaac_chain));
