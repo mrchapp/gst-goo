@@ -448,45 +448,7 @@ gst_dasf_src_get_times (GstBaseSrc *audiosrc,
 }
 
 
-#if 0
-static void
-gst_dasf_src_set_property (GObject* object, guint prop_id,
-						   const GValue* value, GParamSpec* pspec)
-{
-	GstDasfSrcPrivate* priv = GST_DASF_SRC_GET_PRIVATE (object);
 
-	switch (prop_id)
-	{
-		case PROP_NUM_OUTPUT_BUFFERS:
-		priv->num_output_buffers = g_value_get_uint (value);
-		break;
-	default:
-		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-		break;
-	}
-
-	return;
-}
-
-static void
-gst_dasf_src_get_property (GObject* object, guint prop_id,
-                            GValue* value, GParamSpec* pspec)
-{
-	GstDasfSrcPrivate* priv = GST_DASF_SRC_GET_PRIVATE (object);
-
-	switch (prop_id)
-	{
-	case PROP_NUM_OUTPUT_BUFFERS:
-		g_value_set_uint (value, priv->num_output_buffers);
-		break;
-	default:
-		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-		break;
-	}
-
-	return;
-}
-#endif
 static void
 gst_dasf_src_dispose (GObject* object)
 {
@@ -505,16 +467,6 @@ gst_dasf_src_dispose (GObject* object)
                 g_slist_free (self->tracks);
                 self->tracks = NULL;
         }
-
-
-/*
-		GST_DEBUG ("GOO component refcount = %d",
-				  G_OBJECT (self->peer_element)->ref_count);
-*/
-
-/*
-		g_object_unref (self->peer_element);
-*/
 
 
         self->component = NULL;
@@ -576,13 +528,6 @@ gst_dasf_src_class_init (GstDasfSrcClass* klass)
 	GST_ELEMENT_CLASS (klass)->change_state = GST_DEBUG_FUNCPTR (gst_dasf_src_change_state);
 
 
-#if 0
-	g_object_class_install_property (gobject_class, PROP_NUM_OUTPUT_BUFFERS,
-    g_param_spec_uint ("output-buffers", "output buffers",
-				   "The number of OMX output buffers",
-				   1, 10, NUM_OUTPUT_BUFFERS_DEFAULT,
-				   G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
-#endif
 
 }
 
@@ -633,5 +578,3 @@ gst_dasf_src_get_time (GstClock * clock, GstDasfSrc * src)
 	return dasfsrcclock;
 
 }
-
-
