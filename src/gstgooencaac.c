@@ -245,6 +245,8 @@ process_output_buffer (GstGooEncAac* self, OMX_BUFFERHEADERTYPE* buffer)
 		GST_BUFFER_DURATION (out) = duration;
 		GST_BUFFER_OFFSET (out) = self->outcount++;
 		GST_BUFFER_TIMESTAMP (out) = self->ts;
+		GST_DEBUG ("audio timestamp: %"GST_TIME_FORMAT,
+			   GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (out)));
 		if (self->ts != -1)
 		{
 			self->ts += duration;
@@ -259,6 +261,8 @@ process_output_buffer (GstGooEncAac* self, OMX_BUFFERHEADERTYPE* buffer)
 
 duration_out += duration;
 GST_DEBUG ("duration_out=%"GST_TIME_FORMAT, GST_TIME_ARGS (duration_out));
+		GST_DEBUG ("audio timestamp: %"GST_TIME_FORMAT,
+			GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (out)));
 
 		gst_buffer_set_caps (out, GST_PAD_CAPS (self->srcpad));
 
@@ -461,6 +465,8 @@ static gboolean
 gst_goo_encaac_event (GstPad* pad, GstEvent* event)
 {
 	GstGooEncAac* self = GST_GOO_ENCAAC (gst_pad_get_parent (pad));
+
+	GST_DEBUG ("encaac %s", GST_EVENT_TYPE_NAME (event));
 
 	gboolean ret = FALSE;
 
