@@ -280,6 +280,8 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
 
+	GST_DEBUG ("video filter %s", GST_EVENT_TYPE_NAME (event));
+
 	gboolean ret;
 
 	g_assert (self->component != NULL);
@@ -365,7 +367,7 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 static gboolean
 gst_goo_video_filter_src_event (GstPad *pad, GstEvent *event)
 {
-	GST_INFO ("%s", GST_EVENT_TYPE_NAME (event));
+	GST_INFO_OBJECT (self, "%s", GST_EVENT_TYPE_NAME (event));
 
 	GstGooVideoFilter* self = GST_GOO_VIDEO_FILTER (gst_pad_get_parent (pad));
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
@@ -823,6 +825,8 @@ gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffe
 	{
 		GST_BUFFER_DURATION (gst_buffer) = gst_util_uint64_scale_int (
 			GST_SECOND, self->rate_denominator, self->rate_numerator);
+		GST_DEBUG_OBJECT (self, "omx2gst timestamp: %"GST_TIME_FORMAT,
+			GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)));
 	}
 	else
 	{

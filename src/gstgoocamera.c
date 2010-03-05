@@ -365,7 +365,7 @@ gst_goo_camera_stop (GstBaseSrc* self)
 static gboolean
 gst_goo_camera_src_event (GstPad *pad, GstEvent *event)
 {
-	GST_INFO ("%s", GST_EVENT_TYPE_NAME (event));
+	GST_INFO ("camera %s", GST_EVENT_TYPE_NAME (event));
 
 	GstGooCamera* self = GST_GOO_CAMERA (gst_pad_get_parent (pad));
 

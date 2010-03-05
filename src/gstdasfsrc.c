@@ -186,6 +186,8 @@ gst_dasf_src_mixer_interface_init (GstMixerClass* iface)
 static void
 gst_dasf_enable (GstDasfSrc* self)
 {
+	g_assert (self);
+
 	GST_INFO ("");
 
 	self->component = gst_goo_util_find_goo_component (
@@ -320,7 +322,6 @@ gst_dasf_src_create (GstAudioSrc *audiosrc,
 
 	GST_DEBUG ("");
 
-
 	GST_INFO_OBJECT (self, "Ghost Buffer creation");
   gst_buffer = GST_BUFFER (gst_ghost_buffer_new ());
 
@@ -330,6 +331,8 @@ gst_dasf_src_create (GstAudioSrc *audiosrc,
 
 	priv->outcount++;
 
+	// Buffers have no timestamp/duration,
+	// audio encoder will take care of this.
 	GST_BUFFER_TIMESTAMP (gst_buffer) = GST_CLOCK_TIME_NONE;
 	GST_BUFFER_DURATION (gst_buffer) = GST_CLOCK_TIME_NONE;
 
@@ -339,7 +342,7 @@ gst_dasf_src_create (GstAudioSrc *audiosrc,
 		GST_BUFFER_OFFSET_END (gst_buffer) = priv->outcount;
 	}
 
-
+	GST_DEBUG_OBJECT (self, "dasfsrc create");
 	*buffer = gst_buffer;
 	return GST_FLOW_OK;
 
