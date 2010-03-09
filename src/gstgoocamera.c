@@ -68,7 +68,8 @@ enum
 	PROP_EXPOSURE,
 	PROP_VSTAB,
 	PROP_FOCUS,
-	PROP_EFFECTS
+	PROP_EFFECTS,
+	PROP_IPP
 };
 
 #define GST_GOO_CAMERA_GET_PRIVATE(obj) (GST_GOO_CAMERA (obj)->priv)
@@ -87,6 +88,7 @@ struct _GstGooCameraPrivate
 	gint focus;
 	gint effects;
 	gint exposure;
+	gboolean ipp;
 };
 
 static const GstElementDetails details =
@@ -129,6 +131,7 @@ ResolutionInfo maxres;
 #define EFFECTS_DEFAULT			   OMX_CameraConfigEffectsNormal
 #define CONTRAST_LABEL		   "Contrast"
 #define BRIGHTHNESS_LABEL	   "Brightness"
+#define IPP_DEFAULT		   FALSE
 
 /* use the base clock to timestamp the frame */
 #define BASECLOCK
@@ -802,6 +805,10 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 	}
 
 no_enc:
+	if (priv->ipp == TRUE)
+	{
+		g_object_set (self->camera, "ipp", priv->ipp, NULL);
+	}
 
 	GST_INFO_OBJECT (self, "setting up tunnel with post processor");
 	goo_component_set_tunnel_by_name (self->camera, "output0",
@@ -1225,6 +1232,9 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 	case PROP_EFFECTS:
 		priv->effects = g_value_get_enum (value);
 		break;
+	case PROP_IPP:
+		priv->ipp = g_value_get_boolean (value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -1299,6 +1309,9 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 		break;
 	case PROP_EFFECTS:
 		g_object_get_property (G_OBJECT (self->camera),"effects", value);
+		break;
+	case PROP_IPP:
+		g_value_set_boolean (value, priv->ipp);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1605,6 +1618,10 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 				  EFFECTS_DEFAULT, G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_EFFECTS, spec);
 
+	spec = g_param_spec_boolean ("ipp", "Image Processing Pipeline",
+				     "Enabled IPP",
+				     IPP_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_IPP, spec);
 
 	/* GST stuff */
 	p_klass = GST_PUSH_SRC_CLASS (klass);
@@ -1643,6 +1660,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->zoom = ZOOM_DEFAULT;
 		priv->effects = EFFECTS_DEFAULT;
 		priv->exposure = EXPOSURE_DEFAULT;
+		priv->ipp = IPP_DEFAULT;
 	}
 
 	/* color balance */
