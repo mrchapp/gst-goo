@@ -69,7 +69,8 @@ enum
 	PROP_VSTAB,
 	PROP_FOCUS,
 	PROP_EFFECTS,
-	PROP_IPP
+	PROP_IPP,
+	PROP_IMAGECAP
 };
 
 #define GST_GOO_CAMERA_GET_PRIVATE(obj) (GST_GOO_CAMERA (obj)->priv)
@@ -89,6 +90,7 @@ struct _GstGooCameraPrivate
 	gint effects;
 	gint exposure;
 	gboolean ipp;
+	gboolean image;
 };
 
 static const GstElementDetails details =
@@ -132,6 +134,7 @@ ResolutionInfo maxres;
 #define CONTRAST_LABEL		   "Contrast"
 #define BRIGHTHNESS_LABEL	   "Brightness"
 #define IPP_DEFAULT		   FALSE
+#define IMAGE_DEFAULT		   FALSE
 
 /* use the base clock to timestamp the frame */
 #define BASECLOCK
@@ -488,7 +491,6 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		     guint32 color, guint fps_n, guint fps_d)
 {
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (self);
-	gboolean one_shot = FALSE;
 	GValue* value;
 	GooComponent *component=NULL;
 	GST_DEBUG_OBJECT (self, "");
@@ -497,11 +499,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 	{
 		OMX_PARAM_SENSORMODETYPE* param =
 			GOO_TI_CAMERA_GET_PARAM (self->camera);
-
-		/**TRUE if some images will be captured**/
-		one_shot = (fps_n == 0 && fps_d == 1);
-
-		if ( one_shot == TRUE )
+		if (priv->image == TRUE)
 		{
 			gint num_buff;
 			g_object_get (self, "num-buffers", &num_buff, NULL);
@@ -509,17 +507,13 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			if (num_buff == 1 )
 				param->bOneShot = TRUE;
 			else
-			/**More than one image will be captured**/
+				/**More than one image will be captured**/
 				param->bOneShot = FALSE;
 		}
 
 		GST_INFO_OBJECT (self, "Oneshot mode = %d", param->bOneShot);
 
-		if ( one_shot == TRUE)
-		{
-			param->nFrameRate = 0;
-		}
-		else if (fps_d != 0)
+		if (fps_d != 0)
 		{
 			param->nFrameRate = fps_n / fps_d;
 		}
@@ -533,13 +527,14 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		GST_INFO_OBJECT (self, "sensor dwidth = %d | sensor dheight = %d",
 					 param->sFrameSize.nWidth,
 					 param->sFrameSize.nHeight);
+		GST_INFO_OBJECT (self, "Framerate = %d", param->nFrameRate);
 	}
 
 	if (priv->preview == TRUE)
 	{
 		/* display configuration */
 		{
-			if (one_shot == FALSE)
+			if (priv->image == FALSE)
 			{
 				priv->display_width  = width;
 				priv->display_height = height;
@@ -667,7 +662,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		param = GOO_PORT_GET_DEFINITION (self->captureport);
 
 		/**TRUE if some images will be captured**/
-		if (one_shot == TRUE)
+		if (priv->image == TRUE)
 		{
 			param->format.image.eColorFormat = color;
 			param->eDomain = OMX_PortDomainImage;
@@ -776,8 +771,6 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 							param->format.image.nFrameHeight = height;
 							param->format.image.eColorFormat = color;
 							/*param->nBufferCountActual = param->nBufferCountActual;*/
-
-
 							g_object_unref (peer_port);
 						}
 
@@ -1235,6 +1228,9 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 	case PROP_IPP:
 		priv->ipp = g_value_get_boolean (value);
 		break;
+	case PROP_IMAGECAP:
+		priv->image = g_value_get_boolean (value);
+		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -1312,6 +1308,9 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 		break;
 	case PROP_IPP:
 		g_value_set_boolean (value, priv->ipp);
+		break;
+	case PROP_IMAGECAP:
+		g_value_set_boolean (value, priv->image);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1485,7 +1484,6 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 	return result;
 }
 
-
 static void
 gst_goo_camera_class_init (GstGooCameraClass* klass)
 {
@@ -1623,6 +1621,11 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 				     IPP_DEFAULT, G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_IPP, spec);
 
+	spec = g_param_spec_boolean ("imagecap", "Image Capture mode",
+				     "Enable image capture mode",
+				     IMAGE_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_IMAGECAP, spec);
+
 	/* GST stuff */
 	p_klass = GST_PUSH_SRC_CLASS (klass);
 	p_klass->create = GST_DEBUG_FUNCPTR (gst_goo_camera_create);
@@ -1661,6 +1664,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->effects = EFFECTS_DEFAULT;
 		priv->exposure = EXPOSURE_DEFAULT;
 		priv->ipp = IPP_DEFAULT;
+		priv->image = IMAGE_DEFAULT;
 	}
 
 	/* color balance */
