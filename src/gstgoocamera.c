@@ -831,11 +831,6 @@ no_enc:
 	}
 
 	{
-		GST_INFO_OBJECT (self, "seeting focus = %d",priv->focus);
-		g_object_set (self->camera,"focus", priv->focus, NULL);
-	}
-
-	{
 		GST_INFO_OBJECT (self, "seeting color effects = %d",priv->effects);
 		g_object_set (self->camera,"effects", priv->effects, NULL);
 	}
@@ -955,13 +950,6 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 	if (me->camera->cur_state != OMX_StateExecuting)
 	{
 		return GST_FLOW_UNEXPECTED;
-	}
-
-	if (priv->capture == FALSE)
-	{
-		GST_INFO_OBJECT (me, "Capture on");
-		g_object_set (me->camera, "capture", TRUE, NULL);
-		priv->capture = !priv->capture;
 	}
 
 	if (goo_port_is_tunneled (me->captureport))
@@ -1455,6 +1443,9 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+
+		GST_INFO_OBJECT (self, "setting focus = %d", priv->focus);
+		g_object_set (self->camera, "focus", priv->focus, NULL);
 
 		if (priv->capture == FALSE)
 		{
