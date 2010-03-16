@@ -129,7 +129,7 @@ ResolutionInfo maxres;
 #define BRIGHTNESS_DEFAULT	       50
 #define DISPLAY_ROTATION_DEFAULT   GOO_TI_POST_PROCESSOR_ROTATION_NONE
 #define VSTAB_DEFAULT              FALSE
-#define FOCUS_DEFAULT              OMX_CameraConfigFocusAuto
+#define FOCUS_DEFAULT              OMX_CameraConfigFocusStopFocus
 #define EFFECTS_DEFAULT			   OMX_CameraConfigEffectsNormal
 #define CONTRAST_LABEL		   "Contrast"
 #define BRIGHTHNESS_LABEL	   "Brightness"
@@ -1444,8 +1444,11 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 	{
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 
-		GST_INFO_OBJECT (self, "setting focus = %d", priv->focus);
-		g_object_set (self->camera, "focus", priv->focus, NULL);
+		if (priv->focus != OMX_CameraConfigFocusStopFocus)
+		{
+			GST_INFO_OBJECT (self, "setting focus = %d", priv->focus);
+			g_object_set (self->camera, "focus", priv->focus, NULL);
+		}
 
 		if (priv->capture == FALSE)
 		{
