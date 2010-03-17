@@ -26,6 +26,12 @@
 #include <goo-ti-component-factory.h>
 #include <gst/base/gstpushsrc.h>
 
+#include <goo-ti-video-encoder.h>
+#include <goo-ti-video-encoder720p.h>
+#include <goo-ti-post-processor.h>
+#include <goo-ti-jpegenc.h>
+#include <goo-utils.h>
+
 #include "gstgoosem.h"
 
 G_BEGIN_DECLS

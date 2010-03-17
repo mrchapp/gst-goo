@@ -29,10 +29,6 @@
 #include <gst/video/video.h>
 
 #include <goo-ti-camera.h>
-#include <goo-ti-video-encoder.h>
-#include <goo-ti-post-processor.h>
-#include <goo-ti-jpegenc.h>
-#include <goo-utils.h>
 
 #include "gstgoocamera.h"
 #include "gstghostbuffer.h"
@@ -143,6 +139,9 @@ ResolutionInfo maxres;
 /* use gst_pad_alloc_buffer */
 /* #define PADALLOC */
 #undef PADALLOC
+
+#define GOO_IS_TI_ANY_VIDEO_ENCODER(obj) \
+	(GOO_IS_TI_VIDEO_ENCODER(obj) || GOO_IS_TI_VIDEO_ENCODER720P(obj))
 
 #define GST_GOO_CAMERA_ROTATION (gst_goo_camera_rotation_get_type ())
 
@@ -699,7 +698,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			{
 				next_element = GST_ELEMENT (gst_pad_get_parent (peer));
 
-				if  G_UNLIKELY (next_element == NULL)
+				if (G_UNLIKELY (next_element == NULL))
 				{
 					goto no_enc;
 				}
@@ -726,7 +725,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 					component = GOO_COMPONENT (g_object_get_data (G_OBJECT (next_element), "goo"));
 					}
 
-					if (GOO_IS_TI_VIDEO_ENCODER (component))
+					if (GOO_IS_TI_ANY_VIDEO_ENCODER (component))
 					{
 							GST_INFO_OBJECT (self, "There is a video encoder" );
 						/* input port */
