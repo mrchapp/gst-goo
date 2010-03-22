@@ -1638,12 +1638,14 @@ gst_goo_decjpeg_dispose (GObject* object)
 	{
 		GST_DEBUG ("unrefing outport");
 		g_object_unref (self->inport);
+		self->inport = NULL;
 	}
 
 	if (G_LIKELY (self->outport))
 	{
 		GST_DEBUG ("unrefing outport");
 		g_object_unref (self->outport);
+		self->outport = NULL;
 	}
 
 	if (G_LIKELY (self->component))
@@ -1651,12 +1653,14 @@ gst_goo_decjpeg_dispose (GObject* object)
 		GST_DEBUG ("unrefing component");
 		G_OBJECT(self->component)->ref_count = 1;
 		g_object_unref (self->component);
+		self->component = NULL;
 	}
 
 	if (G_LIKELY (self->factory))
 	{
 		GST_DEBUG ("unrefing factory");
 		g_object_unref (self->factory);
+		self->factory = NULL;
 	}
 }
 
@@ -1668,11 +1672,13 @@ gst_goo_decjpeg_finalize (GObject *object)
 	if (G_LIKELY (priv->tempbuf))
 	{
 		gst_buffer_unref (priv->tempbuf);
+		priv->tempbuf = NULL;
 	}
 
 	if (G_LIKELY (priv->segment))
 	{
 		gst_segment_free (priv->segment);
+		priv->segment = NULL;
 	}
 
 	G_OBJECT_CLASS (parent_class)->finalize (object);
