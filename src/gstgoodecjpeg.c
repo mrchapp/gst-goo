@@ -1632,34 +1632,32 @@ gst_goo_decjpeg_dispose (GObject* object)
 
 	G_OBJECT_CLASS (parent_class)->dispose (object);
 
-	GstGooDecJpeg* me = GST_GOO_DECJPEG (object);
+	GstGooDecJpeg* self = GST_GOO_DECJPEG (object);
 
-	if (G_LIKELY (me->inport))
+	if (G_LIKELY (self->inport))
 	{
 		GST_DEBUG ("unrefing outport");
-		g_object_unref (me->inport);
+		g_object_unref (self->inport);
 	}
 
-	if (G_LIKELY (me->outport))
+	if (G_LIKELY (self->outport))
 	{
 		GST_DEBUG ("unrefing outport");
-		g_object_unref (me->outport);
+		g_object_unref (self->outport);
 	}
 
-	if (G_LIKELY (me->component))
+	if (G_LIKELY (self->component))
 	{
 		GST_DEBUG ("unrefing component");
-		G_OBJECT(me->component)->ref_count = 1;
-		g_object_unref (me->component);
+		G_OBJECT(self->component)->ref_count = 1;
+		g_object_unref (self->component);
 	}
 
-	if (G_LIKELY (me->factory))
+	if (G_LIKELY (self->factory))
 	{
 		GST_DEBUG ("unrefing factory");
-		g_object_unref (me->factory);
+		g_object_unref (self->factory);
 	}
-
-	return;
 }
 
 static void
