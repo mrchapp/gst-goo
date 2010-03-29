@@ -185,9 +185,11 @@ gst_goo_camera_output_get_type ()
 			  "LCD", "LCD display output" },
 			{ GOO_TI_POST_PROCESSOR_OUTPUT_TV,
 			  "TV", "TV display output" },
-			{ GOO_TI_POST_PROCESSOR_OUTPUT_BOTH,
+			{ GOO_TI_POST_PROCESSOR_OUTPUT_HDMI,
+			  "HDMI", "HDMI output" },
+			{ GOO_TI_POST_PROCESSOR_OUTPUT_LCD_TV,
 			  "TV & LCD", "Simultaneous display output" },
-			{ 0, NULL, NULL },
+			{ 0, NULL, NULL }
 		};
 
 		type = g_enum_register_static
