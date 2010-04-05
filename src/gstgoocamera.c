@@ -87,6 +87,7 @@ struct _GstGooCameraPrivate
 	gint exposure;
 	gboolean ipp;
 	gboolean image;
+	guint output_buffers;
 };
 
 static const GstElementDetails details =
@@ -580,6 +581,8 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			param->format.video.nFrameWidth = priv->display_width;
 			param->format.video.nFrameHeight =priv->display_height;
 			param->format.video.eColorFormat = color;
+			param->nBufferCountActual = priv->output_buffers;
+
 
 			g_object_unref (port);
 		}
@@ -606,6 +609,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			param->format.video.nFrameWidth =   priv->display_width;
 			param->format.video.nFrameHeight =	priv->display_height;
 			param->format.video.eColorFormat = color;
+			param->nBufferCountActual = priv->output_buffers;
 
 			g_object_unref (port);
 		}
@@ -673,6 +677,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			param->format.video.eColorFormat = color;
 			param->eDomain = OMX_PortDomainVideo;
 		}
+		param->nBufferCountActual = priv->output_buffers;
 	}
 
 	/*Video encoder o jpeg encoder configuration*/
@@ -740,6 +745,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 							param->format.video.nFrameWidth =   width;
 							param->format.video.nFrameHeight =	height;
 							param->format.video.eColorFormat = color;
+							param->nBufferCountActual = priv->output_buffers;
 							g_object_unref (peer_port);
 						}
 
@@ -771,7 +777,6 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 							param->format.image.nFrameWidth = width;
 							param->format.image.nFrameHeight = height;
 							param->format.image.eColorFormat = color;
-							/*param->nBufferCountActual = param->nBufferCountActual;*/
 							g_object_unref (peer_port);
 						}
 
@@ -1163,12 +1168,12 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 {
 	GstGooCamera* self = GST_GOO_CAMERA (object);
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (object);
+	GooPort* viewfinding_port = NULL;
 
 	switch (prop_id)
 	{
 	case PROP_NUM_OUTPUT_BUFFERS:
-		g_object_set_property (G_OBJECT (self->captureport),
-				       "buffercount", value);
+		priv->output_buffers = g_value_get_uint (value);
 		break;
 	case PROP_PREVIEW:
 		priv->preview = g_value_get_boolean (value);
@@ -1253,8 +1258,7 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 	switch (prop_id)
 	{
 	case PROP_NUM_OUTPUT_BUFFERS:
-		g_object_get_property (G_OBJECT (self->captureport),
-				       "buffercount", value);
+		g_value_set_uint (value, priv->output_buffers);
 		break;
 	case PROP_PREVIEW:
 		g_value_set_boolean (value, priv->preview);
@@ -1518,7 +1522,7 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 
 	spec = g_param_spec_uint ("output-buffers", "Output buffers",
 				  "The number of output buffers in OMX",
-				  1, 4, NUM_OUTPUT_BUFFERS_DEFAULT,
+				  1, 6, NUM_OUTPUT_BUFFERS_DEFAULT,
 				  G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass,
 					 PROP_NUM_OUTPUT_BUFFERS, spec);
@@ -1675,6 +1679,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->exposure = EXPOSURE_DEFAULT;
 		priv->ipp = IPP_DEFAULT;
 		priv->image = IMAGE_DEFAULT;
+		priv->output_buffers = NUM_OUTPUT_BUFFERS_DEFAULT;
 	}
 
 	/* color balance */
