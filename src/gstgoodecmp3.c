@@ -371,7 +371,9 @@ gst_goo_decmp3_change_state (GstElement* element, GstStateChange transition)
 	case GST_STATE_CHANGE_NULL_TO_READY:
 		break;
 	case GST_STATE_CHANGE_READY_TO_PAUSED:
-	    if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateIdle) &&
+		break;
+	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
+	    if ((GOO_COMPONENT (self->component)->cur_state == OMX_StateExecuting) &&
 	            (gMp3->mimo_mode >= 4))
 	    {
 	        GooTiAudioManager* gAm = NULL;
@@ -383,12 +385,10 @@ gst_goo_decmp3_change_state (GstElement* element, GstStateChange transition)
 	        g_assert (gAm != NULL);
 	        gAm->cmd->AM_Cmd = AM_CommandWarnSampleFreqChange;
 	        gAm->cmd->param1 = param->nSamplingRate;
-	        gAm->cmd->param2 = gMp3->out_device;
+	        gAm->cmd->param2 = 0;
 	        ret = write (gAm->fdwrite, gAm->cmd, sizeof (AM_COMMANDDATATYPE));
 	        g_assert (ret ==  sizeof (AM_COMMANDDATATYPE));
 	    }
-		break;
-	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		break;
 	default:
 		break;
