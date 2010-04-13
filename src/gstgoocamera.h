@@ -62,6 +62,7 @@ struct _GstGooCamera
 	GooComponentFactory* factory;
 	GooComponent* postproc;
 	GooComponent* camera;
+	GooComponent* clock;
 	GooPort* captureport;
 	GList* channels;
 

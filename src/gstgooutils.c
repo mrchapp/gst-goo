@@ -521,7 +521,7 @@ gst_goo_timestamp_omx2gst (GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE *buffer)
 	/* We need to remove the OMX timestamp normalization */
 	timestamp += OMX2GST_TIMESTAMP(omx_normalize_timestamp);
 
-	if (GST_CLOCK_TIME_IS_VALID (timestamp) && timestamp != 0)
+	if (GST_CLOCK_TIME_IS_VALID (timestamp))
 	{
 		GST_INFO ("Already had a timestamp: %" GST_TIME_FORMAT, GST_TIME_ARGS (timestamp));
 		GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
@@ -636,5 +636,3 @@ gst_goo_util_post_message (GstElement* self,
   g_free ( str_timestamp );
   return;
 }
-
-

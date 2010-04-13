@@ -363,8 +363,20 @@ gst_goo_camera_stop (GstBaseSrc* self)
 	GST_INFO_OBJECT (self, "going to idle");
 	goo_component_set_state_idle (me->camera);
 
+	if (me->clock)
+	{
+		GST_INFO_OBJECT (self, "moving clock to to idle");
+		goo_component_set_state_idle (me->clock);
+	}
+
 	GST_INFO_OBJECT (self, "going to loaded");
+
 	goo_component_set_state_loaded (me->camera);
+
+	if (me->clock)
+	{
+		goo_component_set_state_loaded (me->clock);
+	}
 
 	return TRUE;
 }
@@ -819,23 +831,23 @@ no_enc:
 	goo_component_set_supplier_port (self->postproc, port_pp, OMX_BufferSupplyInput);
 	gst_object_unref (port_pp);
 
-	GooComponent *audio_component = gst_goo_util_find_goo_component (
-		GST_ELEMENT (self), GOO_TYPE_TI_AUDIO_COMPONENT);
 
-	if (audio_component)
-	{
-		GST_INFO ("audio component found");
-		GooComponent *clock =
-			goo_ti_audio_component_get_clock (audio_component);
-		if (clock)
-		{
-			GST_INFO ("clock found in audio encoder, link it with the camera");
-			goo_ti_camera_set_clock (self->camera, clock);
-		}
+	if (!priv->image)
+	{	/* In video mode, Camera should use the omx clock for correct timestamping*/
+		GST_INFO ("Create the OMX Clock");
+		self->clock = goo_component_factory_get_component (self->factory, GOO_TI_CLOCK);
+		GST_INFO ("Camera and OMX linkage");
+		goo_ti_camera_set_clock (self->camera, self->clock);
 	}
 
 	GST_INFO_OBJECT (self, "going to idle");
 	goo_component_set_state_idle (self->camera);
+
+	if (self->clock)
+	{
+		GST_INFO_OBJECT (self, "moving clock to to idle");
+		goo_component_set_state_idle (self->clock);
+	}
 
 	if (priv->vstab == TRUE)
 	{
@@ -845,6 +857,12 @@ no_enc:
 
 	GST_INFO_OBJECT (self, "camera: going to executing");
 	goo_component_set_state_executing (self->camera);
+
+	if (self->clock)
+	{
+		GST_INFO_OBJECT (self, "moving clock to to executing");
+		goo_component_set_state_executing (self->clock);
+	}
 
 	{
 		GST_INFO_OBJECT (self, "seeting zoom = %d",priv->zoom);
@@ -1371,6 +1389,12 @@ gst_goo_camera_dispose (GObject *object)
 		g_object_unref (me->postproc);
 	}
 
+	if (G_LIKELY (me->clock != NULL))
+	{
+			GST_DEBUG ("unrefing clock");
+			g_object_unref (me->clock);
+	}
+
 	if (G_LIKELY (me->factory != NULL))
 	{
 		GST_DEBUG ("unrefing factory");
@@ -1701,6 +1725,10 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		channel->min_value = -100;
 		channel->max_value = 100;
 		self->channels = g_list_append (self->channels, channel);
+	}
+
+	{
+		self->clock = NULL;
 	}
 
 	/* goo component */
