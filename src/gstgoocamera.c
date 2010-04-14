@@ -413,6 +413,17 @@ gst_goo_camera_src_event (GstPad *pad, GstEvent *event)
 	return ret;
 }
 
+static void
+gst_goo_camera_cb_PPM_focus_start (GooTiCamera* component, GTimeVal* timestamp, GstGooCamera* self)
+{
+	gst_goo_util_post_message ( GST_ELEMENT (self), "focus-startpoint", timestamp);
+}
+
+static void
+gst_goo_camera_cb_PPM_focus_end (GooTiCamera* component, GTimeVal* timestamp, GstGooCamera* self)
+{
+	gst_goo_util_post_message ( GST_ELEMENT (self), "focus-endpoint", timestamp);
+}
 
 /* this function is a bit of a last resort */
 static void
@@ -1487,18 +1498,15 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 	switch (transition)
 	{
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
-
-		if (priv->focus != OMX_CameraConfigFocusStopFocus)
 		{
 			GST_INFO_OBJECT (self, "setting focus = %d", priv->focus);
 			g_object_set (self->camera, "focus", priv->focus, NULL);
-		}
-
-		if (priv->capture == FALSE)
-		{
-			GST_INFO_OBJECT (self, "Resume");
-			g_object_set (self->camera, "capture", TRUE, NULL);
-			priv->capture = !priv->capture;
+			if (priv->capture == FALSE)
+			{
+				GST_INFO_OBJECT (self, "Resume");
+				g_object_set (self->camera, "capture", TRUE, NULL);
+				priv->capture = !priv->capture;
+			}
 		}
 		break;
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
@@ -1753,5 +1761,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 	gst_pad_set_event_function (GST_BASE_SRC (self)->srcpad,
 		GST_DEBUG_FUNCPTR (gst_goo_camera_src_event));
 
+	g_signal_connect(self->camera, "PPM_focus_start", (GCallback) gst_goo_camera_cb_PPM_focus_start, self);
+	g_signal_connect(self->camera, "PPM_focus_end", (GCallback) gst_goo_camera_cb_PPM_focus_end, self);
 	return;
 }
