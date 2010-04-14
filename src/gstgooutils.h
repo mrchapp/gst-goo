@@ -48,7 +48,7 @@ gboolean   gst_goo_event_is_reverse_eos (GstEvent *evt);
 
 void gst_goo_util_ensure_executing (GooComponent *component);
 
-void gst_goo_util_post_message (GstElement* self, gchar* structure_name);
+void gst_goo_util_post_message (GstElement* self, gchar* structure_name, GTimeVal* gotten_time);
 
 
 #define PRINT_BUFFER(buffer)  \

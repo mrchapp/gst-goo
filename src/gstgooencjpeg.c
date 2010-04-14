@@ -561,7 +561,7 @@ fail:
 	gst_goo_adapter_clear (adapter);
 
 done:
-	gst_goo_util_post_message (GST_ELEMENT (self), "shot-to-save-endpoint");
+	gst_goo_util_post_message (GST_ELEMENT (self), "shot-to-save-endpoint", NULL);
 	gst_object_unref (self);
 	gst_buffer_unref (buffer);
 	return ret;

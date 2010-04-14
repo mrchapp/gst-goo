@@ -604,7 +604,7 @@ gst_goo_util_ensure_executing (GooComponent *component)
 
 void
 gst_goo_util_post_message (GstElement* self,
-							gchar* structure_name)
+							gchar* structure_name, GTimeVal* gotten_time)
 {
 
   GstMessage *msg = NULL;
@@ -614,9 +614,15 @@ gst_goo_util_post_message (GstElement* self,
   gdouble timestamp;
   GTimeVal current_time;
 
-  /* Get the current time */
-  g_get_current_time(&current_time);
-  timestamp = current_time.tv_sec + current_time.tv_usec/1e6;
+  if (gotten_time == NULL)
+  {
+	  /* Get the current time */
+	  g_get_current_time(&current_time);
+	  timestamp = current_time.tv_sec + current_time.tv_usec/1e6;
+  }
+  else
+	  timestamp = gotten_time->tv_sec + gotten_time->tv_usec/1e6;
+
   str_timestamp = g_strdup_printf("%f",timestamp);
 
   if(structure_name)

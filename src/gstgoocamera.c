@@ -1492,7 +1492,7 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 	/* Send a message with the timestamp of the component's state change */
 	gchar *structure_name;
 	structure_name = g_strdup_printf("%s_%d", "camera_transition",transition);
-	gst_goo_util_post_message ( GST_ELEMENT (self), structure_name);
+	gst_goo_util_post_message ( GST_ELEMENT (self), structure_name, NULL);
 	g_free(structure_name);
 
 	switch (transition)
