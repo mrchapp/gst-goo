@@ -522,37 +522,30 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 
 	/* sensor configuration */
 	{
-		OMX_PARAM_SENSORMODETYPE* param =
-			GOO_TI_CAMERA_GET_PARAM (self->camera);
+		OMX_PARAM_SENSORMODETYPE* sensor = GOO_TI_CAMERA_GET_PARAM (self->camera);
 		if (priv->image == TRUE)
 		{
 			gint num_buff;
 			g_object_get (self, "num-buffers", &num_buff, NULL);
 			/**If only one image will be captured**/
 			if (num_buff == 1 )
-				param->bOneShot = TRUE;
-			else
-				/**More than one image will be captured**/
-				param->bOneShot = FALSE;
-		}
-
-		GST_INFO_OBJECT (self, "Oneshot mode = %d", param->bOneShot);
-
-		if (fps_d != 0)
-		{
-			param->nFrameRate = fps_n / fps_d;
+			{
+				sensor->bOneShot = TRUE;
+				sensor->nFrameRate = 0;
+			}
 		}
 		else
 		{
-			param->nFrameRate = 15;
+			/**More than one image will be captured**/
+			sensor->bOneShot = FALSE;
+			if (fps_d != 0)
+				sensor->nFrameRate = fps_n / fps_d;
+			else
+				sensor->nFrameRate = 15;
 		}
 
-		param->sFrameSize.nWidth = width;
-		param->sFrameSize.nHeight = height;
-		GST_INFO_OBJECT (self, "sensor dwidth = %d | sensor dheight = %d",
-					 param->sFrameSize.nWidth,
-					 param->sFrameSize.nHeight);
-		GST_INFO_OBJECT (self, "Framerate = %d", param->nFrameRate);
+		GST_INFO_OBJECT (self, "Oneshot mode = %d", sensor->bOneShot);
+
 	}
 
 	if (priv->preview == TRUE)
@@ -694,11 +687,15 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		{
 			param->format.image.eColorFormat = color;
 			param->eDomain = OMX_PortDomainImage;
+			param->format.image.nFrameWidth = width;
+			param->format.image.nFrameHeight = height;
 		}
 		else
 		{
 			param->format.video.eColorFormat = color;
 			param->eDomain = OMX_PortDomainVideo;
+			param->format.video.nFrameWidth = width;
+			param->format.video.nFrameHeight = height;
 		}
 		param->nBufferCountActual = priv->output_buffers;
 	}
