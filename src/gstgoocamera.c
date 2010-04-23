@@ -110,7 +110,7 @@ static GstStaticPadTemplate src_factory =
 /* the max resolution of the postprocessor */
 ResolutionInfo maxres;
 
-#define NUM_OUTPUT_BUFFERS_DEFAULT 4
+#define NUM_OUTPUT_BUFFERS_DEFAULT 6
 #define PREVIEW_DEFAULT		       TRUE
 #define OUTPUT_DEFAULT	      	   GOO_TI_POST_PROCESSOR_OUTPUT_LCD
 #define VIDEOPIPELINE_DEFAULT      2
