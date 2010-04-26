@@ -446,6 +446,8 @@ static gboolean gst_goo_decwbamr_check_fixed_src_caps(GstGooAudioFilter *filter)
 
     src_caps = gst_caps_new_simple (
             "audio/x-raw-int",
+            "endianness", G_TYPE_INT, G_BYTE_ORDER,
+            "signed", G_TYPE_BOOLEAN, TRUE,
             "width", G_TYPE_INT, 16,
             "depth", G_TYPE_INT, 16,
             "rate", G_TYPE_INT, param->nBitRate,
