@@ -211,9 +211,10 @@ gst_goo_decwmv_extra_buffer_processing(GstGooVideoFilter *filter, GstBuffer *buf
 		//buffer = gst_buffer_join (mark, buffer);
 
      /*  NEW buffer Header implementation  Apr_09    */
-		guint32 vc1_offset = 255;
-		GstBuffer *empty_space = gst_buffer_new_and_alloc(vc1_offset);
-		buffer = gst_buffer_join (empty_space, buffer);
+     /*  No longer needed as of May_10 */
+		//guint32 vc1_offset = 255;
+		//GstBuffer *empty_space = gst_buffer_new_and_alloc(vc1_offset);
+		//buffer = gst_buffer_join (empty_space, buffer);
 	}
 
 	if (self->parsed_header == TRUE)
