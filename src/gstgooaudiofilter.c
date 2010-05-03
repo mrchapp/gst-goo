@@ -171,16 +171,6 @@ gst_goo_audio_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 
 	gst_goo_audio_filter_timestamp_buffer (self, gst_buffer, buffer);
 
-	GST_BUFFER_DURATION (gst_buffer) = self->duration;
-	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
-	GST_BUFFER_TIMESTAMP (gst_buffer) = self->audio_timestamp;
-	PRINT_BUFFER (gst_buffer);
-
-	if (self->audio_timestamp != -1)
-	{
-		self->audio_timestamp += self->duration;
-	}
-
 	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
 	gst_pad_push (self->srcpad, gst_buffer);
 
@@ -724,11 +714,21 @@ gst_goo_audio_filter_check_fixed_src_caps_default (GstGooAudioFilter* self)
 
 
 static gboolean
-gst_goo_audio_filter_timestamp_buffer_default (GstGooAudioFilter* self, GstBuffer *gst_buf, OMX_BUFFERHEADERTYPE* buffer)
+gst_goo_audio_filter_timestamp_buffer_default (GstGooAudioFilter* self, GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE* buffer)
 {
-	/** No timestamp **/
+	GstGooAudioFilterPrivate* priv = GST_GOO_AUDIO_FILTER_GET_PRIVATE (self);
+
 	self->running_time = GST_CLOCK_TIME_NONE;
-	GST_BUFFER_DURATION (gst_buf) = GST_CLOCK_TIME_NONE;
+
+	GST_BUFFER_DURATION (gst_buffer) = self->duration;
+	GST_BUFFER_OFFSET (gst_buffer) = priv->outcount;
+	GST_BUFFER_TIMESTAMP (gst_buffer) = self->audio_timestamp;
+	PRINT_BUFFER (gst_buffer);
+
+	if (self->audio_timestamp != -1)
+	{
+		self->audio_timestamp += self->duration;
+	}
 
 	return TRUE;
 
