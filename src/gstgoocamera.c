@@ -418,6 +418,30 @@ gst_goo_camera_src_event (GstPad *pad, GstEvent *event)
 }
 
 static void
+gst_goo_camera_cb_PPM_omx_events (GooTiCamera* component, GooTiCameraOmxDataEvent* OmxEventData, GstGooCamera* self)
+{
+	GstMessage *msg = NULL;
+	GstStructure *stru = NULL;
+	gboolean ret = TRUE;
+	gchar* structure_name = "PPM_OMX_event";
+
+	stru = gst_structure_new (structure_name,
+	                          "eEvent", G_TYPE_UINT, OmxEventData->eEvent,
+	                          "nData1", G_TYPE_ULONG, OmxEventData->nData1,
+	                          "nData2", G_TYPE_ULONG, OmxEventData->nData2,
+	                          NULL);
+
+	/* Create the message and send it to the bus */
+	msg = gst_message_new_custom (GST_MESSAGE_ELEMENT, GST_OBJECT (self), stru);
+
+	ret = gst_element_post_message (GST_ELEMENT (self), msg);
+	if (ret != TRUE)
+		GST_WARNING_OBJECT (self, "Messsage could not be posted: PPM_OMX_event");
+
+	return;
+}
+
+static void
 gst_goo_camera_cb_PPM_focus_start (GooTiCamera* component, GTimeVal* timestamp, GstGooCamera* self)
 {
 	gst_goo_util_post_message ( GST_ELEMENT (self), "focus-startpoint", timestamp);
@@ -653,16 +677,13 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 	/* sensor configuration */
 	{
 		OMX_PARAM_SENSORMODETYPE* sensor = GOO_TI_CAMERA_GET_PARAM (self->camera);
-		if (priv->image == TRUE)
+		gint num_buff;
+		g_object_get (self, "num-buffers", &num_buff, NULL);
+		/** If only one image will be captured **/
+		if ((num_buff == 1) && (priv->image == TRUE))
 		{
-			gint num_buff;
-			g_object_get (self, "num-buffers", &num_buff, NULL);
-			/**If only one image will be captured**/
-			if (num_buff == 1 )
-			{
-				sensor->bOneShot = TRUE;
-				sensor->nFrameRate = 0;
-			}
+			sensor->bOneShot = TRUE;
+			sensor->nFrameRate = 0;
 		}
 		else
 		{
@@ -1774,5 +1795,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 
 	g_signal_connect(self->camera, "PPM_focus_start", (GCallback) gst_goo_camera_cb_PPM_focus_start, self);
 	g_signal_connect(self->camera, "PPM_focus_end", (GCallback) gst_goo_camera_cb_PPM_focus_end, self);
+	g_signal_connect(self->camera, "PPM_omx_event", (GCallback) gst_goo_camera_cb_PPM_omx_events, self);
+
 	return;
 }
