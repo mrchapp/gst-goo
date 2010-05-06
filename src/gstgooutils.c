@@ -603,35 +603,26 @@ gst_goo_util_ensure_executing (GooComponent *component)
  */
 
 void
-gst_goo_util_post_message (GstElement* self,
-							gchar* structure_name, GTimeVal* gotten_time)
+gst_goo_util_post_message (GstElement* self, gchar* structure_name, GTimeVal* gotten_time)
 {
 
   GstMessage *msg = NULL;
   GstStructure *stru = NULL;
-  gchar *str_timestamp = NULL;
 
-  gdouble timestamp;
   GTimeVal current_time;
 
   if (gotten_time == NULL)
-  {
-	  /* Get the current time */
-	  g_get_current_time(&current_time);
-	  timestamp = current_time.tv_sec + current_time.tv_usec/1e6;
-  }
+    /* Get the current time */
+    g_get_current_time (&current_time);
   else
-	  timestamp = gotten_time->tv_sec + gotten_time->tv_usec/1e6;
-
-  str_timestamp = g_strdup_printf("%f",timestamp);
+    current_time = *(gotten_time);
 
   if(structure_name)
   {
 	stru = gst_structure_new(structure_name,
-	                         "timestamp",
-	                         G_TYPE_STRING,
-	                         str_timestamp,
-	                         NULL);
+                    "nData1", G_TYPE_ULONG, current_time.tv_sec,
+                    "nData2", G_TYPE_ULONG, current_time.tv_usec,
+                    NULL);
   }
 
   /* Create the message and send it to the bus */
@@ -639,6 +630,5 @@ gst_goo_util_post_message (GstElement* self,
 
   g_assert ( gst_element_post_message (GST_ELEMENT(self), msg));
 
-  g_free ( str_timestamp );
   return;
 }
