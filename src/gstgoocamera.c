@@ -33,6 +33,7 @@
 #include "gstgoocamera.h"
 #include "gstghostbuffer.h"
 #include "gstgoobuffer.h"
+#include "gstgooutils.h"
 #include "string.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_goo_camera_debug);
@@ -1104,63 +1105,57 @@ gst_goo_camera_create (GstPushSrc* self, GstBuffer **buffer)
 
 		goo_component_release_buffer (me->camera, omx_buffer);
 #endif
+
 	}
 
-
-	GST_DEBUG_OBJECT (me, "gst stuff");
+	GST_DEBUG_OBJECT (me, "Timestamp and duration");
 	{
-		GstClock* clock = NULL;
-		GstClockTime timestamp, duration;
 
-#ifdef BASECLOCK /** @fixme: muxing sync hack */
-		GST_DEBUG_OBJECT (me, "Using element clock");
-		GST_OBJECT_LOCK (self);
-		if ((clock = GST_ELEMENT_CLOCK (self)))
+		GST_DEBUG_OBJECT (self, "Timestamp Calculation");
 		{
-			/* we have a clock, get base time and ref clock */
-			timestamp = GST_ELEMENT (self)->base_time;
-			gst_object_ref (clock);
-		}
-		else
-		{
-			/* no clock, can't set timestamps */
-			timestamp = GST_CLOCK_TIME_NONE;
-		}
-		GST_OBJECT_UNLOCK (self);
+			GstClockTime timestamp;
+			GST_DEBUG_OBJECT (me, "Try to Convert OMX to GST timestamps");
+			timestamp = gst_goo_timestamp_omx2gst (omx_buffer);
 
-		if (clock)
-		{
-			/* the time now is the time of the clock minus the
-			 * base time */
-			timestamp = gst_clock_get_time (clock) - timestamp;
-			gst_object_unref (clock);
-		}
-#else
-		if (priv->framerate > 0)
-		{
-			timestamp = gst_util_uint64_scale_int
-				(GST_SECOND,
-				 priv->outcount * priv->rate_denominator,
-				 priv->rate_numerator);
-		}
-		else
-		{
-			timestamp = GST_CLOCK_TIME_NONE;
-		}
-#endif
+			if (!GST_CLOCK_TIME_IS_VALID (timestamp))
+			{
+				GST_DEBUG_OBJECT (me, "Invalid omx to gst conversion, thus set the expected one");
+				if (priv->fps_d && priv->fps_n)
+				{
+					timestamp = gst_util_uint64_scale_int
+						(GST_SECOND,
+						 priv->outcount * priv->fps_d,
+						 priv->fps_n);
+				}
+				else
+				{
+					timestamp = GST_CLOCK_TIME_NONE;
+				}
 
-		if (priv->fps_n > 0)
-		{
-			duration = gst_util_uint64_scale_int
-				(GST_SECOND, priv->fps_d, priv->fps_n);
-		}
-		else
-		{
-			duration = GST_CLOCK_TIME_NONE;
+			}
+			GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
 		}
 
-		GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
-		GST_BUFFER_DURATION (gst_buffer) = duration;
+		GST_DEBUG_OBJECT (me, "Durarion Calculating");
+		{
+			GstClockTime duration;
+			if (priv->fps_n > 0)
+			{
+				duration = gst_util_uint64_scale_int
+					(GST_SECOND, priv->fps_d, priv->fps_n);
+			}
+			else
+			{
+				duration = GST_CLOCK_TIME_NONE;
+			}
+			GST_BUFFER_DURATION (gst_buffer) = duration;
+		}
+
+		GST_DEBUG_OBJECT (self,
+			"timestamp= %"GST_TIME_FORMAT" duration= "GST_TIME_FORMAT,
+			GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)),
+			GST_TIME_ARGS (GST_BUFFER_DURATION (gst_buffer)));
+
 
 		GST_DEBUG_OBJECT (me, "setting caps");
 		gst_buffer_set_caps (gst_buffer,
