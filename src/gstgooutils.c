@@ -512,26 +512,17 @@ gst_goo_timestamp_gst2omx (
  * Utility function to handle transferring an OMX timestamp to a Gstreamer
  * timestamp
  */
-gboolean
-gst_goo_timestamp_omx2gst (GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE *buffer)
+GstClockTime
+gst_goo_timestamp_omx2gst (OMX_BUFFERHEADERTYPE *buffer)
 {
-	gint64 buffer_ts = (gint64)buffer->nTimeStamp;
-	guint64 timestamp = OMX2GST_TIMESTAMP (buffer_ts);
 
-	/* We need to remove the OMX timestamp normalization */
-	timestamp += OMX2GST_TIMESTAMP(omx_normalize_timestamp);
-
+	GstClockTime timestamp = OMX2GST_TIMESTAMP (buffer->nTimeStamp);
 	if (GST_CLOCK_TIME_IS_VALID (timestamp))
 	{
-		GST_INFO ("Already had a timestamp: %" GST_TIME_FORMAT, GST_TIME_ARGS (timestamp));
-		GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
-		return TRUE;
+		return timestamp;
 	}
-	else
-	{
-		GST_WARNING ("Invalid timestamp!");
-		return FALSE;
-	}
+	GST_WARNING ("Invalid timestamp!");
+	return GST_CLOCK_TIME_NONE;
 }
 
 /******************************************************************************/

@@ -818,20 +818,15 @@ gst_goo_video_filter_dispose (GObject* object)
 static gboolean
 gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE* buffer)
 {
-	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
-
 	GST_DEBUG_OBJECT (self, "");
 
-	if (gst_goo_timestamp_omx2gst (gst_buffer, buffer))
-	{
-		GST_BUFFER_DURATION (gst_buffer) = gst_util_uint64_scale_int (
-			GST_SECOND, self->rate_denominator, self->rate_numerator);
-		GST_DEBUG_OBJECT (self, "omx2gst timestamp: %"GST_TIME_FORMAT,
-			GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)));
-	}
-	else
-	{
+	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
+	GstClockTime timestamp = gst_goo_timestamp_omx2gst (buffer);
 
+	if (!GST_CLOCK_TIME_IS_VALID (timestamp))
+	{
+		 GST_DEBUG_OBJECT (self,
+                       "OMX to GST Timestamp convertion failed, thus using the running time");
 		if (priv->outcount == 1 && priv->process_mode == STREAMMODE)
 		{
 			GstEvent *event = gst_event_new_new_segment (FALSE, 1.0, GST_FORMAT_TIME,
@@ -842,7 +837,6 @@ gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffe
 		/*Estimating timestamps */
 		/* timestamps, LOCK to get clock and base time. */
 		GstClock *clock;
-		GstClockTime timestamp;
 
 		GST_OBJECT_LOCK (self);
 		if ((clock = GST_ELEMENT_CLOCK (self)))
@@ -872,7 +866,17 @@ gst_goo_video_filter_timestamp_buffer_default (GstGooVideoFilter* self, GstBuffe
 			GST_SECOND, self->rate_denominator, self->rate_numerator);
 	}
 
-	GST_DEBUG_OBJECT (self, "");
+
+	GST_BUFFER_TIMESTAMP (gst_buffer) = timestamp;
+	GST_BUFFER_DURATION (gst_buffer) = gst_util_uint64_scale_int (
+							GST_SECOND,
+							self->rate_denominator,
+							self->rate_numerator);
+
+	GST_DEBUG_OBJECT (self,
+					"timestamp=%"GST_TIME_FORMAT" durarion=%"GST_TIME_FORMAT,
+					GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (gst_buffer)),
+					GST_TIME_ARGS (GST_BUFFER_DURATION (gst_buffer)));
 
 	return TRUE;
 

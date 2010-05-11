@@ -40,7 +40,7 @@ GooComponent* gst_goo_util_find_goo_component (GstElement *elem, GType type);
 #define GST_GOO_UTIL_IS_DISCONT(buffer)  (GST_BUFFER_FLAG_IS_SET ((buffer), GST_BUFFER_FLAG_DISCONT) || (GST_BUFFER_TIMESTAMP ((buffer)) == 0))
 
 gboolean gst_goo_timestamp_gst2omx (OMX_BUFFERHEADERTYPE* omx_buffer, GstBuffer* buffer, gboolean normalize);
-gboolean gst_goo_timestamp_omx2gst (GstBuffer *buffer, OMX_BUFFERHEADERTYPE *omx_buffer);
+GstClockTime gst_goo_timestamp_omx2gst (OMX_BUFFERHEADERTYPE *omx_buffer);
 
 GstEvent * gst_goo_event_new_reverse_eos (void);
 gboolean   gst_goo_event_is_reverse_eos (GstEvent *evt);
