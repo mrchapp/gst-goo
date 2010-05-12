@@ -129,6 +129,13 @@ struct _GstGooVideoFilterPrivate
 #define GST_GOO_IS_TI_VIDEO_DECODER(obj) \
 	(GOO_IS_TI_VIDEO_DECODER(obj) || GOO_IS_TI_VIDEO_DECODER720P(obj))
 
+gboolean
+gst_goo_is_omx_buffer_empty (OMX_BUFFERHEADERTYPE* buffer)
+{
+	g_assert (buffer);
+	return (buffer->nFilledLen == 0);
+}
+
 /**
  * gst_goo_video_filter_outport_buffer:
  * @port: A #GooPort instance
@@ -158,6 +165,13 @@ gst_goo_video_filter_outport_buffer (GooPort* port, OMX_BUFFERHEADERTYPE* buffer
 		GST_GOO_VIDEO_FILTER (g_object_get_data (G_OBJECT (data), "gst"));
 	g_assert (self != NULL);
 	GstGooVideoFilterPrivate* priv = GST_GOO_VIDEO_FILTER_GET_PRIVATE (self);
+
+	if (gst_goo_is_omx_buffer_empty (buffer))
+	{
+		GST_INFO ("Empty buffer, not processing");
+		goo_component_release_buffer (component, buffer);
+		return;
+	}
 
 	GstBuffer* gst_buffer = gst_buffer_new_and_alloc (buffer->nFilledLen);
 	gst_buffer_set_caps (gst_buffer, GST_PAD_CAPS (self->srcpad));
