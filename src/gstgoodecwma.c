@@ -117,16 +117,6 @@ static GstStaticPadTemplate sink_factory =
 				"block_align = (int) [0, 100000]"
 				));
 
-static gboolean
-gst_goo_decwma_process_mode (GstGooAudioFilter *self, guint value)
-{
-	GooComponent *component = self->component;
-
-	g_object_set (G_OBJECT (component), "frame-mode", value ? TRUE : FALSE, NULL);
-
-	return TRUE;
-}
-
 static void
 gst_goo_decwma_set_property (GObject* object, guint prop_id,
 				const GValue* value, GParamSpec* pspec)
@@ -465,7 +455,6 @@ gst_goo_decwma_class_init (GstGooDecWmaClass* klass)
 	/* GST GOO FILTER */
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decwma_check_fixed_src_caps);
-	gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decwma_process_mode);
 	gst_c_klass->extra_buffer_processing_func = GST_DEBUG_FUNCPTR (gst_goo_decwma_extra_buffer_processing);
 
 	return;
@@ -529,9 +518,6 @@ gst_goo_decwma_init (GstGooDecWma* self, GstGooDecWmaClass* klass)
 
 	g_object_set_data (G_OBJECT (GST_GOO_AUDIO_FILTER (self)->component), "gst", self);
 	g_object_set_data (G_OBJECT (self), "goo", GST_GOO_AUDIO_FILTER (self)->component);
-	/* The Stream Mode does not work for this component.
-	 * Therefore, Frame Mode is the default.
-	g_object_set(G_OBJECT (self), "process-mode", 1, NULL);*/
 
         return;
 }
@@ -571,6 +557,9 @@ gst_goo_decwma_sink_setcaps (GstPad *pad, GstCaps *caps)
 	gst_structure_get_int (structure, "block_align", &block_align);
 	gst_structure_get_int (structure, "bitrate", &bitrate);
 	gst_structure_get_int (structure, "depth", &depth);
+
+	if (gst_goo_util_structure_is_parsed (structure))
+		g_object_set (G_OBJECT (self), "process-mode", 0, NULL);
 
 	/** Fill the private structure with the caps values  for use in
 		codec data processing and extra	buffer processing **/

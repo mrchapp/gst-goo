@@ -320,15 +320,6 @@ _goo_ti_aacdec_set_bit_output (GstGooDecAac* self, gboolean bit_output)
 	return retval;
 
 }
-static gboolean
-gst_goo_decaac_process_mode_default (GstGooAudioFilter *self, guint value)
-{
-	GooComponent *component = GST_GOO_AUDIO_FILTER (self)->component;
-
-	g_object_set (G_OBJECT (component), "frame-mode", value ? TRUE : FALSE, NULL);
-
-	return TRUE;
-}
 
 static void
 gst_goo_decaac_set_property (GObject* object, guint prop_id,
@@ -602,7 +593,6 @@ gst_goo_decaac_class_init (GstGooDecAacClass* klass)
 	/* GST GOO FILTER */
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decaac_check_fixed_src_caps);
-    gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decaac_process_mode_default);
 
     gst_klass = GST_ELEMENT_CLASS (klass);
 
@@ -714,6 +704,9 @@ gst_goo_decaac_sink_setcaps (GstPad *pad, GstCaps *caps)
 	str_caps = gst_structure_to_string (structure);
 	GST_DEBUG_OBJECT (self, "sink caps: %s", str_caps);
 	g_free (str_caps);
+
+	if (gst_goo_util_structure_is_parsed (structure))
+		g_object_set (G_OBJECT (self), "process-mode", 0, NULL);
 
 	if (gst_structure_has_field (structure, "codec_data"))
 	{

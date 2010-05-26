@@ -87,16 +87,6 @@ static GstStaticPadTemplate sink_factory =
 				 "channels = (int) [1, 2]"
 				));
 
-static gboolean
-gst_goo_decg711_process_mode_default (GstGooAudioFilter *self, guint value)
-{
-	GooComponent *component = self->component;
-
-	g_object_set (G_OBJECT (component), "frame-mode", value ? TRUE : FALSE, NULL);
-
-	return TRUE;
-}
-
 static void
 gst_goo_decg711_dispose (GObject* object)
 {
@@ -139,7 +129,6 @@ gst_goo_decg711_class_init (GstGooDecG711Class* klass)
 
 	/* GST GOO FILTER */
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
-	gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decg711_process_mode_default);
 	return;
 }
 
@@ -172,7 +161,6 @@ gst_goo_decg711_init (GstGooDecG711* self, GstGooDecG711Class* klass)
 
 	g_object_set_data (G_OBJECT (GST_GOO_AUDIO_FILTER (self)->component), "gst", self);
 	g_object_set_data (G_OBJECT (self), "goo", GST_GOO_AUDIO_FILTER (self)->component);
-	g_object_set(G_OBJECT (self), "process-mode", 1, NULL);
 
         return;
 }
@@ -210,6 +198,9 @@ gst_goo_decg711_sink_setcaps (GstPad *pad, GstCaps *caps)
 
 	gst_structure_get_int (structure, "rate", &sample_rate);
 	gst_structure_get_int (structure, "channels", &channels);
+
+	if (gst_goo_util_structure_is_parsed (structure))
+		g_object_set (G_OBJECT (self), "process-mode", 0, NULL);
 
 	GOO_TI_G711DEC_GET_INPUT_PARAM (component)->nSamplingRate = sample_rate;
 	GOO_TI_G711DEC_GET_INPUT_PARAM (component)->nChannels = channels;

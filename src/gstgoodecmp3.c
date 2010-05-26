@@ -532,19 +532,6 @@ gst_goo_decmp3_check_fixed_src_caps (GstGooAudioFilter *filter)
 
 }
 
-static gboolean
-gst_goo_decmp3_process_mode_default (GstGooAudioFilter *self, guint value)
-{
-	GooComponent* component = GST_GOO_AUDIO_FILTER (self)->component;
-	gboolean frame_mode = value ? TRUE : FALSE;
-
-	GST_DEBUG_OBJECT (self, "Set frame_mode to: %d", frame_mode);
-
-
-
-	g_object_set (G_OBJECT (component),"frame-mode", value ? TRUE: FALSE,
-					  NULL);
-}
 
 static void
 gst_goo_decmp3_component_wait_for_done (GooComponent* self)
@@ -672,7 +659,6 @@ gst_goo_decmp3_class_init (GstGooDecMp3Class* klass)
 	GstGooAudioFilterClass *gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->codec_data_processing_func = GST_DEBUG_FUNCPTR (gst_goo_decmp3_codec_data_processing);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decmp3_check_fixed_src_caps);
-	gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decmp3_process_mode_default);
 
 	gst_klass = GST_ELEMENT_CLASS (klass);
 
@@ -782,6 +768,9 @@ gst_goo_decmp3_sink_setcaps (GstPad *pad, GstCaps *caps)
 	gst_structure_get_int (structure, "channels", &channels);
 	gst_structure_get_int (structure, "layer", &layer);
 	gst_structure_get_int (structure, "mpegaudioversion", &mpegaudioversion);
+
+	if (gst_goo_util_structure_is_parsed (structure))
+		g_object_set (G_OBJECT (self), "process-mode", 0, NULL);
 
 	factor = 0.02 * channels * sample_rate;
 	GST_GOO_AUDIO_FILTER (self)->duration =

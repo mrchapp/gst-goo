@@ -623,3 +623,36 @@ gst_goo_util_post_message (GstElement* self, gchar* structure_name, GTimeVal* go
 
   return;
 }
+
+
+/**
+ * Utility function which checks whether the structure come from a parser,
+ * meaning that the next element should work in frame_mode.
+ *
+ * @structure the caps to check
+ */
+
+gboolean gst_goo_util_structure_is_parsed (GstStructure *structure) {
+    if (gst_structure_has_field (structure, "parsed")) {
+        gboolean parsed = FALSE;
+        gst_structure_get_boolean (structure, "parsed", &parsed);
+        if (parsed)
+            return TRUE;
+    }
+
+    if (gst_structure_has_field (structure, "framed")) {
+        gboolean framed = FALSE;
+        gst_structure_get_boolean (structure, "framed", &framed);
+        if (framed)
+            return TRUE;
+    }
+
+    if (gst_structure_has_field (structure, "codec_data")) {
+        const GValue *codec_data = NULL;
+        codec_data = gst_structure_get_value (structure, "codec_data");
+        if (codec_data != NULL)
+            return TRUE;
+    }
+
+    return FALSE;
+}

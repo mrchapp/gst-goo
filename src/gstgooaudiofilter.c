@@ -732,6 +732,13 @@ gst_goo_audio_filter_timestamp_buffer_default (GstGooAudioFilter* self, GstBuffe
 static gboolean
 gst_goo_audio_filter_set_process_mode_default (GstGooAudioFilter* self, guint value)
 {
+	GooComponent* component = GST_GOO_AUDIO_FILTER (self)->component;
+	gboolean frame_mode = value ? TRUE : FALSE;
+
+	GST_DEBUG_OBJECT (self, "Set frame_mode to: %d", frame_mode);
+
+	g_object_set (G_OBJECT (component),
+		"frame-mode", value == FRAMEMODE ? TRUE : FALSE, NULL);
 	return TRUE;
 }
 

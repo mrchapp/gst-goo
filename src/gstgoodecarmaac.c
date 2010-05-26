@@ -426,6 +426,9 @@ gst_goo_decarmaac_setcaps (GstPad* pad, GstCaps* caps)
 	GST_DEBUG_OBJECT (self, "sink caps: %s", str_caps);
 	OMX_AUDIO_PARAM_AACPROFILETYPE* param = GOO_TI_ARMAACDEC_GET_INPUT_PORT_PARAM (self->component);
 
+	if (gst_goo_util_structure_is_parsed (structure))
+		g_object_set (G_OBJECT (self), "process-mode", 0, NULL);
+
 	if (gst_structure_has_field (structure, "codec_data"))
 	{
 		gint iIndex = 0;

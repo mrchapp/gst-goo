@@ -248,17 +248,6 @@ _goo_ti_nbamrdec_set_dtx_mode (GstGooDecNbAmr* self, guint dtx_mode)
 	return retval;
 }
 
-static gboolean
-gst_goo_decnbamr_process_mode_default (GstGooAudioFilter *self, guint value)
-{
-	GooComponent *component = GST_GOO_AUDIO_FILTER (self)->component;
-
-	GST_DEBUG ("gst_goo_decnbamr_process_mode_default %d", value);
-	g_object_set (G_OBJECT (component), "frame-mode", value ? TRUE : FALSE, NULL);
-
-	return TRUE;
-}
-
 static void
 gst_goo_decnbamr_set_property (GObject* object, guint prop_id,
 				const GValue* value, GParamSpec* pspec)
@@ -478,7 +467,6 @@ gst_goo_decnbamr_class_init (GstGooDecNbAmrClass* klass)
 	/* GST GOO FILTER */
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decnbamr_check_fixed_src_caps);
-	gst_c_klass->set_process_mode_func = GST_DEBUG_FUNCPTR (gst_goo_decnbamr_process_mode_default);
 
 	gst_klass = GST_ELEMENT_CLASS (klass);
 
@@ -580,6 +568,9 @@ gst_goo_decnbamr_sink_setcaps (GstPad *pad, GstCaps *caps)
 
 	gst_structure_get_int (structure, "rate", &bit_rate);
 	gst_structure_get_int (structure, "channels", &channels);
+
+	if (gst_goo_util_structure_is_parsed (structure))
+		g_object_set (G_OBJECT (self), "process-mode", 0, NULL);
 
 	GOO_TI_NBAMRDEC_GET_INPUT_PORT_PARAM (component)->nChannels = channels;
 	GOO_TI_NBAMRDEC_GET_INPUT_PORT_PARAM (component)->nBitRate = bit_rate;
