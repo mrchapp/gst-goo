@@ -1138,9 +1138,9 @@ gst_goo_filtervpp_change_state (GstElement* element, GstStateChange transition)
 		GST_OBJECT_UNLOCK (self);
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
-		break;
+               omx_stop (self);
+               break;
 	case GST_STATE_CHANGE_READY_TO_NULL:
-		omx_stop (self);
 		break;
 	default:
 		break;
@@ -1282,12 +1282,14 @@ gst_goo_filtervpp_dispose (GObject* object)
 	{
 		GST_DEBUG ("unrefing inport");
 		g_object_unref (self->inport);
+		self->inport = NULL;
 	}
 
 	if (G_LIKELY (self->outport != NULL))
 	{
 		GST_DEBUG ("unrefing outport");
 		g_object_unref (self->outport);
+		self->outport = NULL;
 	}
 
 	if (G_LIKELY (self->component != NULL))
@@ -1295,12 +1297,14 @@ gst_goo_filtervpp_dispose (GObject* object)
 		GST_DEBUG ("unrefing component");
 		G_OBJECT(self->component)->ref_count = 1;
 		g_object_unref (self->component);
+		self->component = NULL;
 	}
 
 	if (G_LIKELY (self->factory != NULL))
 	{
 		GST_DEBUG ("unrefing factory");
 		g_object_unref (self->factory);
+		self->factory = NULL;
 	}
 
 	return;
