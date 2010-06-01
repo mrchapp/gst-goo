@@ -52,7 +52,13 @@ enum
 	PROP_0,
 	PROP_QUALITY,
 	PROP_COMMENT,
-	PROP_THUMBNAIL
+	PROP_THUMBNAIL,
+	PROP_ROTATION,
+	PROP_CONVERSION,
+	PROP_CROPWIDTH,
+	PROP_CROPHEIGHT,
+	PROP_CROPLEFT,
+	PROP_CROPTOP
 	/*PROP_NUM_INPUT_BUFFERS,
 	PROP_NUM_OUTPUT_BUFFERS*/
 };
@@ -82,6 +88,12 @@ struct _GstGooEncJpegPrivate
 	guint APP13_height;
 	guint colorformat;
 	guint omxbufsiz;
+	guint rotation;
+	guint conversion;
+	guint cropwidth;
+	guint cropheight;
+	guint cropleft;
+	guint croptop;
 };
 
 #define COMMENT_DEFAULT ""
@@ -92,6 +104,12 @@ struct _GstGooEncJpegPrivate
 #define WIDTH_DEFAULT 1024
 #define HEIGHT_DEFAULT 780
 #define COLOR_FORMAT_DEFAULT OMX_COLOR_FormatCbYCrY
+#define ROTATION_DEFAULT 0
+#define CONVERSION_DEFAULT 0
+#define CROP_WIDTH_DEFAULT 0
+#define CROP_HEIGHT_DEFAULT 0
+#define CROP_LEFT_DEFAULT 0
+#define CROP_TOP_DEFAULT 0
 
 static const GstElementDetails details =
 	GST_ELEMENT_DETAILS (
@@ -173,6 +191,7 @@ omx_sync (GstGooEncJpeg* self)
 
 	GST_DEBUG ("configuring params");
 	OMX_PARAM_PORTDEFINITIONTYPE* param;
+	OMX_PARAM_PORTDEFINITIONTYPE* inparam;
 
 	param = GOO_PORT_GET_DEFINITION (self->inport);
 	param->format.image.nFrameWidth = priv->width;
@@ -180,11 +199,27 @@ omx_sync (GstGooEncJpeg* self)
 	param->format.image.eColorFormat = priv->colorformat;
 
 	param = GOO_PORT_GET_DEFINITION (self->outport);
+	inparam = GOO_PORT_GET_DEFINITION (self->inport);
 	param->format.image.nFrameWidth = priv->width;
 	param->format.image.nFrameHeight = priv->height;
-	param->format.image.eColorFormat = priv->colorformat;
+
+	if (inparam->format.image.eColorFormat == OMX_COLOR_FormatYUV420PackedPlanar && priv->conversion == 1)
+	{
+		param->format.image.eColorFormat = OMX_COLOR_FormatCbYCrY;
+	}
+	else
+	{
+		param->format.image.eColorFormat = priv->colorformat;
+	}
 
 	GOO_TI_JPEGENC_GET_PARAM (self->component)->nQFactor = priv->quality;
+
+	GOO_TI_JPEGENC (self->component)->rotation = priv->rotation;
+	GOO_TI_JPEGENC (self->component)->conversion = priv->conversion;
+	GOO_TI_JPEGENC (self->component)->cropwidth = priv->cropwidth;
+	GOO_TI_JPEGENC (self->component)->cropheight = priv->cropheight;
+	GOO_TI_JPEGENC (self->component)->cropleft = priv->cropleft;
+	GOO_TI_JPEGENC (self->component)->croptop = priv->croptop;
 
 	g_object_set (self->inport,
 		      "buffercount", priv->num_input_buffers, NULL);
@@ -687,6 +722,42 @@ gst_goo_encjpeg_set_property (GObject* object, guint prop_id,
 		}
 		break;
 	}
+	case PROP_ROTATION:
+	{
+		priv->rotation = g_value_get_uint (value);
+		GOO_TI_JPEGENC (self->component)->rotation = priv->rotation;
+		break;
+	}
+	case PROP_CONVERSION:
+	{
+		priv->conversion = g_value_get_uint (value);
+		GOO_TI_JPEGENC (self->component)->conversion = priv->conversion;
+		break;
+	}
+	case PROP_CROPWIDTH:
+	{
+		priv->cropwidth = g_value_get_uint (value);
+		GOO_TI_JPEGENC (self->component)->cropwidth = priv->cropwidth;
+		break;
+	}
+	case PROP_CROPHEIGHT:
+	{
+		priv->cropheight = g_value_get_uint (value);
+		GOO_TI_JPEGENC (self->component)->cropheight = priv->cropheight;
+		break;
+	}
+	case PROP_CROPLEFT:
+	{
+		priv->cropleft = g_value_get_uint (value);
+		GOO_TI_JPEGENC (self->component)->cropleft = priv->cropleft;
+		break;
+	}
+	case PROP_CROPTOP:
+	{
+		priv->croptop = g_value_get_uint (value);
+		GOO_TI_JPEGENC (self->component)->croptop = priv->croptop;
+		break;
+	}
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -718,6 +789,36 @@ gst_goo_encjpeg_get_property (GObject* object, guint prop_id,
 /*		   gchar* comment; */
 /*		   g_object_get (self->component, "comment", comment, NULL); */
 /*		   g_value_set_string (value, comment); */
+	case PROP_ROTATION:
+	{
+		g_value_set_uint (value, priv->rotation);
+		break;
+	}
+	case PROP_CONVERSION:
+	{
+		g_value_set_uint (value, priv->conversion);
+		break;
+	}
+	case PROP_CROPWIDTH:
+	{
+		g_value_set_uint (value, priv->cropwidth);
+		break;
+	}
+	case PROP_CROPHEIGHT:
+	{
+		g_value_set_uint (value, priv->cropheight);
+		break;
+	}
+	case PROP_CROPLEFT:
+	{
+		g_value_set_uint (value, priv->cropleft);
+		break;
+	}
+	case PROP_CROPTOP:
+	{
+		g_value_set_uint (value, priv->croptop);
+		break;
+	}
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 		break;
@@ -829,6 +930,33 @@ gst_goo_encjpeg_class_init (GstGooEncJpegClass* klass)
 	pspec = g_param_spec_string ("thumbnail", "Thumbnail", "Image thumbnail",
 								THUMBNAIL_DEFAULT, G_PARAM_WRITABLE);
 	g_object_class_install_property (g_klass, PROP_THUMBNAIL, pspec);
+
+	/* Rotation */
+	pspec = g_param_spec_uint ("rotation", "Rotation", "Image rotation",
+				   0, 360, ROTATION_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_ROTATION, pspec);
+
+	/* Conversion */
+	pspec = g_param_spec_uint ("conversion", "Conversion", "Image conversion",
+				   0, 12 , CONVERSION_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_CONVERSION, pspec);
+
+	/* Cropping */
+	pspec = g_param_spec_uint ("crop-width", "Crop-width", "Width of cropped image",
+				   0, 4096, CROP_WIDTH_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_CROPWIDTH, pspec);
+
+	pspec = g_param_spec_uint ("crop-height", "Crop-height","Height of cropped image",
+				   0, 4096, CROP_HEIGHT_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_CROPHEIGHT, pspec);
+
+	pspec = g_param_spec_uint ("crop-left", "Crop-left", "Number of pixels to be cropped from left",
+				   0, 4096, CROP_LEFT_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_CROPLEFT, pspec);
+
+	pspec = g_param_spec_uint ("crop-top", "Crop-top", "Number of pixels to be cropped from top",
+				   0, 4096, CROP_TOP_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_CROPTOP, pspec);
 
 	gst_goo_encjpeg_signals[FRAME_ENCODED] =
 		g_signal_new ("frame-encoded", G_TYPE_FROM_CLASS (klass),
