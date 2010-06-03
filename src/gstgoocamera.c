@@ -89,6 +89,7 @@ struct _GstGooCameraPrivate
 	gboolean ipp;
 	gboolean image;
 	guint output_buffers;
+	gint64 last_pause_time;
 };
 
 static const GstElementDetails details =
@@ -133,6 +134,7 @@ ResolutionInfo maxres;
 #define BRIGHTHNESS_LABEL	   "Brightness"
 #define IPP_DEFAULT		   FALSE
 #define IMAGE_DEFAULT		   FALSE
+#define DEFAULT_START_TIME 0
 
 /* use the base clock to timestamp the frame */
 #define BASECLOCK
@@ -1524,6 +1526,11 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 
 	switch (transition)
 	{
+	case GST_STATE_CHANGE_READY_TO_PAUSED:
+		{
+			priv->last_pause_time = DEFAULT_START_TIME;
+			break;
+		}
 	case GST_STATE_CHANGE_PAUSED_TO_PLAYING:
 		{
 			GST_INFO_OBJECT (self, "setting focus = %d", priv->focus);
@@ -1534,6 +1541,13 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 				g_object_set (self->camera, "capture", TRUE, NULL);
 				priv->capture = !priv->capture;
 			}
+
+			if (self->clock)
+			{	/* Take pause time, so when resuming this would be the base time */
+				GST_INFO_OBJECT (self, "Take pause time");
+				goo_ti_clock_set_starttime (self->clock, priv->last_pause_time);
+			}
+
 		}
 		break;
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
@@ -1544,6 +1558,14 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 			g_object_set (self->camera, "capture", FALSE, NULL);
 			priv->capture = !priv->capture;
 		}
+
+		if (self->clock)
+		{
+			/* Set the base time (the time where the clock starts) */
+			GST_INFO_OBJECT (self, "Set base time");
+			priv->last_pause_time = goo_ti_clock_get_timestamp (self->clock);
+		}
+
 		break;
 	case GST_STATE_CHANGE_PAUSED_TO_READY:
 		{
@@ -1739,6 +1761,7 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->ipp = IPP_DEFAULT;
 		priv->image = IMAGE_DEFAULT;
 		priv->output_buffers = NUM_OUTPUT_BUFFERS_DEFAULT;
+		priv->last_pause_time = DEFAULT_START_TIME;
 	}
 
 	/* color balance */
