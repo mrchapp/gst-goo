@@ -697,7 +697,11 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 			else
 				sensor->nFrameRate = 15;
 		}
+		/* Info needed at goo-ti for burst mode configuration */
+		if (num_buff != G_MAXUINT)
+			g_object_set (self->camera, "shots", num_buff, NULL);
 		GST_INFO_OBJECT (self, "Oneshot mode = %d", sensor->bOneShot);
+
 	}
 
 	if (priv->preview == TRUE)
