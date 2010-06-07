@@ -44,6 +44,12 @@ enum
 {
 	LAST_SIGNAL
 };
+enum
+{
+    VIDEO_MODE                  = 0,
+    HIGH_PERFORMANCE_MODE       = 1,
+    HIGH_QUALITY_MODE           = 2,
+};
 
 /* args */
 enum
@@ -67,7 +73,7 @@ enum
 	PROP_FOCUS,
 	PROP_EFFECTS,
 	PROP_IPP,
-	PROP_IMAGECAP
+	PROP_CAPMODE
 };
 
 #define GST_GOO_CAMERA_GET_PRIVATE(obj) (GST_GOO_CAMERA (obj)->priv)
@@ -87,7 +93,7 @@ struct _GstGooCameraPrivate
 	gint effects;
 	gint exposure;
 	gboolean ipp;
-	gboolean image;
+	guint capmode;
 	guint output_buffers;
 	gint64 last_pause_time;
 };
@@ -133,7 +139,7 @@ ResolutionInfo maxres;
 #define CONTRAST_LABEL		   "Contrast"
 #define BRIGHTHNESS_LABEL	   "Brightness"
 #define IPP_DEFAULT		   FALSE
-#define IMAGE_DEFAULT		   FALSE
+#define CAPMODE_DEFAULT            VIDEO_MODE
 #define DEFAULT_START_TIME 0
 
 /* use the base clock to timestamp the frame */
@@ -146,6 +152,29 @@ ResolutionInfo maxres;
 
 #define GOO_IS_TI_ANY_VIDEO_ENCODER(obj) \
 	(GOO_IS_TI_VIDEO_ENCODER(obj) || GOO_IS_TI_VIDEO_ENCODER720P(obj))
+
+#define GST_GOO_CAMERA_CAPTURE_MODE (gst_goo_camera_capmode_get_type ())
+static GType
+gst_goo_camera_capmode_get_type (void)
+{
+    static GType type = 0;
+
+    if (!type)
+    {
+        static GEnumValue vals[] =
+        {
+            {VIDEO_MODE,            "Video",  "Video capture mode"},
+            {HIGH_PERFORMANCE_MODE, "HP",     "High performance image capture"},
+            {HIGH_QUALITY_MODE,     "HQ",     "High quality image capture"},
+            {0, NULL, NULL},
+        };
+
+        type = g_enum_register_static ("GstGooCameraCaptureMode", vals);
+    }
+
+    return type;
+}
+
 
 #define GST_GOO_CAMERA_ROTATION (gst_goo_camera_rotation_get_type ())
 
@@ -357,10 +386,11 @@ gst_goo_camera_stop (GstBaseSrc* self)
 
 	GST_DEBUG_OBJECT (self, "");
 
-	if (priv->capture == TRUE)
+	if (priv->capture != CAPMODE_DEFAULT)
 	{
 		GST_INFO_OBJECT (self, "Stop");
-		g_object_set (me->camera, "capture", FALSE, NULL);
+		g_object_set (me->camera, "capture", CAPMODE_DEFAULT, NULL);
+		priv->capture != CAPMODE_DEFAULT;
 	}
 
 	GST_INFO_OBJECT (self, "going to idle");
@@ -547,7 +577,7 @@ gst_goo_postproc_config (GstGooCamera* self, gint width, gint height, guint32 co
 {
 	GstGooCameraPrivate* priv = GST_GOO_CAMERA_GET_PRIVATE (self);
 
-	if (priv->image == FALSE)
+	if (priv->capmode == VIDEO_MODE)
 	{
 		priv->display_width  = width;
 		priv->display_height = height;
@@ -683,7 +713,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		gint num_buff;
 		g_object_get (self, "num-buffers", &num_buff, NULL);
 		/** If only one image will be captured **/
-		if ((num_buff == 1) && (priv->image == TRUE))
+		if ((num_buff == 1) && (priv->capmode != VIDEO_MODE))
 		{
 			sensor->bOneShot = TRUE;
 			sensor->nFrameRate = 0;
@@ -780,7 +810,7 @@ gst_goo_camera_sync (GstGooCamera* self, gint width, gint height,
 		param = GOO_PORT_GET_DEFINITION (self->captureport);
 
 		/**TRUE if some images will be captured**/
-		if (priv->image == TRUE)
+		if (priv->capmode != VIDEO_MODE)
 		{
 			param->format.image.eColorFormat = color;
 			param->eDomain = OMX_PortDomainImage;
@@ -886,7 +916,7 @@ gst_goo_camera_omx_start (GstGooCamera* self, gint width, gint height,
 		/* Camera ports configuration and tunneled components */
 		gst_goo_camera_sync (self, width, height, color, fps_n, fps_d);
 
-		if (!priv->image)
+		if (priv->capmode == VIDEO_MODE )
 		{	/* In video mode, Camera should use the omx clock for correct timestamping */
 			GST_INFO ("Create the OMX Clock");
 			self->clock = goo_component_factory_get_component (self->factory, GOO_TI_CLOCK);
@@ -1299,8 +1329,8 @@ gst_goo_camera_set_property (GObject* object, guint prop_id,
 	case PROP_IPP:
 		priv->ipp = g_value_get_boolean (value);
 		break;
-	case PROP_IMAGECAP:
-		priv->image = g_value_get_boolean (value);
+	case PROP_CAPMODE:
+		priv->capmode = g_value_get_enum (value);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1379,8 +1409,8 @@ gst_goo_camera_get_property (GObject* object, guint prop_id,
 	case PROP_IPP:
 		g_value_set_boolean (value, priv->ipp);
 		break;
-	case PROP_IMAGECAP:
-		g_value_set_boolean (value, priv->image);
+	case PROP_CAPMODE:
+                g_value_set_enum (value, priv->capmode);
 		break;
 	default:
 		G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1539,11 +1569,15 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 		{
 			GST_INFO_OBJECT (self, "setting focus = %d", priv->focus);
 			g_object_set (self->camera, "focus", priv->focus, NULL);
-			if (priv->capture == FALSE)
+			if (priv->capture == CAPMODE_DEFAULT)
 			{
 				GST_INFO_OBJECT (self, "Resume");
-				g_object_set (self->camera, "capture", TRUE, NULL);
-				priv->capture = !priv->capture;
+				if ((priv->capmode == VIDEO_MODE) || (priv->capmode == HIGH_PERFORMANCE_MODE))
+					priv->capture = HIGH_PERFORMANCE_MODE;
+				else
+					priv->capture = HIGH_QUALITY_MODE;
+
+				g_object_set (self->camera, "capture", priv->capture, NULL);
 			}
 
 			if (self->clock)
@@ -1556,11 +1590,11 @@ gst_goo_camera_change_state (GstElement* element, GstStateChange transition)
 		break;
 	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
 
-		if (priv->capture == TRUE)
+		if (priv->capture != CAPMODE_DEFAULT)
 		{
 			GST_INFO_OBJECT (self, "Pause");
-			g_object_set (self->camera, "capture", FALSE, NULL);
-			priv->capture = !priv->capture;
+			g_object_set (self->camera, "capture", CAPMODE_DEFAULT, NULL);
+			priv->capture = CAPMODE_DEFAULT;
 		}
 
 		if (self->clock)
@@ -1720,10 +1754,11 @@ gst_goo_camera_class_init (GstGooCameraClass* klass)
 				     IPP_DEFAULT, G_PARAM_READWRITE);
 	g_object_class_install_property (g_klass, PROP_IPP, spec);
 
-	spec = g_param_spec_boolean ("imagecap", "Image Capture mode",
-				     "Enable image capture mode",
-				     IMAGE_DEFAULT, G_PARAM_READWRITE);
-	g_object_class_install_property (g_klass, PROP_IMAGECAP, spec);
+	spec = g_param_spec_enum ("capture-mode", "Capture mode",
+				  "Select capture mode",
+				  GST_GOO_CAMERA_CAPTURE_MODE,
+				  CAPMODE_DEFAULT, G_PARAM_READWRITE);
+	g_object_class_install_property (g_klass, PROP_CAPMODE, spec);
 
 	/* GST stuff */
 	p_klass = GST_PUSH_SRC_CLASS (klass);
@@ -1756,14 +1791,14 @@ gst_goo_camera_init (GstGooCamera* self, GstGooCameraClass* klass)
 		priv->video_pipeline = VIDEOPIPELINE_DEFAULT;
 		priv->display_width = DISPLAY_WIDTH_DEFAULT;
 		priv->display_height = DISPLAY_HEIGHT_DEFAULT;
-		priv->capture = FALSE;
+		priv->capture = CAPMODE_DEFAULT;
 		priv->vstab = VSTAB_DEFAULT;
 		priv->focus = FOCUS_DEFAULT;
 		priv->zoom = ZOOM_DEFAULT;
 		priv->effects = EFFECTS_DEFAULT;
 		priv->exposure = EXPOSURE_DEFAULT;
 		priv->ipp = IPP_DEFAULT;
-		priv->image = IMAGE_DEFAULT;
+		priv->capmode = CAPMODE_DEFAULT;
 		priv->output_buffers = NUM_OUTPUT_BUFFERS_DEFAULT;
 		priv->last_pause_time = DEFAULT_START_TIME;
 	}
