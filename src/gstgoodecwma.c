@@ -409,9 +409,8 @@ gst_goo_decwma_extra_buffer_processing(GstGooAudioFilter *filter, GstBuffer *buf
 			buffer = gst_buffer_join (header_buffer, buffer);
 			self->parsed_header = TRUE;
 		}
-	/* There are discontinuities in the audio if we preserve the timestamps
+
 		GST_BUFFER_TIMESTAMP (buffer) = GST_BUFFER_TIMESTAMP (orig_buffer);
-	*/
 	}
 
 	#if 0
@@ -429,6 +428,21 @@ gst_goo_decwma_extra_buffer_processing(GstGooAudioFilter *filter, GstBuffer *buf
 
 }
 
+static gboolean
+gst_goo_wma_timestamp_buffer (GstGooAudioFilter* self, GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE* buffer)
+{
+	self->duration = gst_goo_duration_omx2gst (buffer);
+	GST_BUFFER_TIMESTAMP (gst_buffer) = self->audio_timestamp;
+	GST_BUFFER_DURATION (gst_buffer) = self->duration;
+
+	if (self->audio_timestamp != GST_CLOCK_TIME_NONE)
+	{
+		self->audio_timestamp += self->duration;
+	}
+
+	return TRUE;
+
+}
 
 static void
 gst_goo_decwma_class_init (GstGooDecWmaClass* klass)
@@ -456,6 +470,7 @@ gst_goo_decwma_class_init (GstGooDecWmaClass* klass)
 	GstGooAudioFilterClass* gst_c_klass = GST_GOO_AUDIO_FILTER_CLASS (klass);
 	gst_c_klass->check_fixed_src_caps_func = GST_DEBUG_FUNCPTR (gst_goo_decwma_check_fixed_src_caps);
 	gst_c_klass->extra_buffer_processing_func = GST_DEBUG_FUNCPTR (gst_goo_decwma_extra_buffer_processing);
+	gst_c_klass->timestamp_buffer_func =  GST_DEBUG_FUNCPTR (gst_goo_wma_timestamp_buffer);
 
 	return;
 }
