@@ -525,6 +525,23 @@ gst_goo_timestamp_omx2gst (OMX_BUFFERHEADERTYPE *buffer)
 	return GST_CLOCK_TIME_NONE;
 }
 
+/**
+ * Utility function to handle transferring an OMX duration to a Gstreamer
+ * duration
+ */
+GstClockTime
+gst_goo_duration_omx2gst (OMX_BUFFERHEADERTYPE *buffer)
+{
+	GstClockTime duration = OMX2GST_DURATION (buffer->nTickCount);
+	if (GST_CLOCK_TIME_IS_VALID (duration))
+	{
+		return duration;
+	}
+
+	GST_WARNING ("Invalid duration!");
+	return GST_CLOCK_TIME_NONE;
+}
+
 /******************************************************************************/
 /******************************************************************************/
 /******************************************************************************/
