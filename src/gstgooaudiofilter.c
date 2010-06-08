@@ -290,6 +290,7 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 		case GST_EVENT_FLUSH_STOP:
 			GST_INFO ("Flush Stop Event");
 			goo_component_set_state_executing(self->component);
+			self->audio_timestamp = GST_CLOCK_TIME_NONE;
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		default:
@@ -471,10 +472,12 @@ gst_goo_audio_filter_chain (GstPad* pad, GstBuffer* buffer)
 		goto done;
 	}
 
-	if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+	if (GST_GOO_AUDIO_FILTER (self)->audio_timestamp == GST_CLOCK_TIME_NONE)
 	{
-		GST_GOO_AUDIO_FILTER (self)->audio_timestamp =
-			GST_BUFFER_TIMESTAMP (buffer);
+	        if (GST_BUFFER_TIMESTAMP_IS_VALID (buffer))
+		{
+			GST_GOO_AUDIO_FILTER (self)->audio_timestamp = GST_BUFFER_TIMESTAMP (buffer);
+		}
 	}
 
 	// XXX maybe all access to 'adapter' needs to be moved to chain2()?  could be weird race
@@ -862,6 +865,7 @@ gst_goo_audio_filter_init (GstGooAudioFilter* self, GstGooAudioFilterClass* klas
 	priv->process_mode = DEFAULT_PROCESS_MODE;
 	self->nbamr_mime = FALSE;
 	self->wbamr_mime = FALSE;
+	self->audio_timestamp = GST_CLOCK_TIME_NONE;
 
 	self->factory = goo_ti_component_factory_get_instance ();
 
