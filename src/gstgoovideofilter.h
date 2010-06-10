@@ -75,6 +75,8 @@ struct _GstGooVideoFilter
 	guint rate_denominator;
 
 	GstClockTime running_time;
+
+	gboolean seek;
 };
 
 /**

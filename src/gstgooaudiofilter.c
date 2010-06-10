@@ -282,16 +282,28 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_FLUSH_START:
-			GST_INFO ("Flush Start Event");
-			goo_component_set_state_pause(self->component);
-			goo_component_flush_all_ports(self->component);
+			if (self->seek)
+			{
+				GST_INFO ("Flush Start Event");
+				goo_component_set_state_pause (self->component);
+				goo_component_flush_all_ports (self->component);
+			}
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_FLUSH_STOP:
-			GST_INFO ("Flush Stop Event");
-			goo_component_set_state_executing(self->component);
+			if (self->seek)
+			{
+				GST_INFO ("Flush Stop Event");
+				goo_component_set_state_executing (self->component);
+				self->seek = FALSE;
+			}
 			self->audio_timestamp = GST_CLOCK_TIME_NONE;
 			ret = gst_pad_push_event (self->srcpad, event);
+			break;
+		case GST_EVENT_SEEK:
+			GST_INFO ("Seek Event");
+			self->seek = TRUE;
+			ret = gst_pad_push_event (self->sinkpad, event);
 			break;
 		default:
 			ret = gst_pad_event_default (pad, event);
@@ -866,6 +878,7 @@ gst_goo_audio_filter_init (GstGooAudioFilter* self, GstGooAudioFilterClass* klas
 	self->nbamr_mime = FALSE;
 	self->wbamr_mime = FALSE;
 	self->audio_timestamp = GST_CLOCK_TIME_NONE;
+	self->seek = FALSE;
 
 	self->factory = goo_ti_component_factory_get_instance ();
 

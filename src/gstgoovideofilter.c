@@ -359,15 +359,27 @@ gst_goo_video_filter_sink_event (GstPad* pad, GstEvent* event)
 			}
 			break;
 		case GST_EVENT_FLUSH_START:
-			GST_INFO ("Flush Start Event");
-			goo_component_set_state_pause(self->component);
-			goo_component_flush_all_ports(self->component);
+			if (self->seek)
+			{
+				GST_INFO ("Flush Start Event");
+				goo_component_set_state_pause (self->component);
+				goo_component_flush_all_ports (self->component);
+			}
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
 		case GST_EVENT_FLUSH_STOP:
-			GST_INFO ("Flush Stop Event");
-			goo_component_set_state_executing(self->component);
+			if (self->seek)
+			{
+				GST_INFO ("Flush Stop Event");
+				goo_component_set_state_executing (self->component);
+				self->seek = FALSE;
+			}
 			ret = gst_pad_push_event (self->srcpad, event);
+			break;
+		case GST_EVENT_SEEK:
+			GST_INFO ("Seek Event");
+			self->seek = TRUE;
+			ret = gst_pad_push_event (self->sinkpad, event);
 			break;
 		default:
 			ret = gst_pad_event_default (pad, event);
@@ -1009,6 +1021,7 @@ gst_goo_video_filter_init (GstGooVideoFilter* self, GstGooVideoFilterClass* klas
 	self->factory = goo_ti_component_factory_get_instance ();
 	self->rate_numerator = 30;
 	self->rate_denominator = 1;
+	self->seek = FALSE;
 
 	/* GST */
 	GstPadTemplate* pad_template;

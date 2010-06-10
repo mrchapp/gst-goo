@@ -72,6 +72,8 @@ struct _GstGooAudioFilter
 	GstClockTime running_time;
 	GstClockTime duration;
 	GstClockTime audio_timestamp;
+
+	gboolean seek;
 };
 
 struct _GstGooAudioFilterClass
