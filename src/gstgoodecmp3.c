@@ -731,7 +731,6 @@ gst_goo_decmp3_init (GstGooDecMp3* self, GstGooDecMp3Class* klass)
 
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER (self)->sinkpad, gst_goo_decmp3_sink_setcaps);
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER (self)->srcpad, gst_goo_decmp3_src_setcaps);
-	gst_pad_set_event_function (GST_GOO_AUDIO_FILTER(self)->sinkpad, gst_goo_decmp3_sink_event);
 
 	g_object_set_data (G_OBJECT (GST_GOO_AUDIO_FILTER (self)->component), "gst", self);
 	g_object_set_data (G_OBJECT (self), "goo", GST_GOO_AUDIO_FILTER (self)->component);
