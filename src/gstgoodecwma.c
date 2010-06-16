@@ -646,6 +646,10 @@ gst_goo_decwma_sink_setcaps (GstPad *pad, GstCaps *caps)
 		}
 	}
 #endif
+
+	GOO_TI_WMADEC_GET_OUTPUT_PARAM (component)->nSamplingRate = sample_rate;
+	GOO_TI_WMADEC_GET_OUTPUT_PARAM (component)->nChannels = channels;
+
 	return gst_pad_set_caps (pad, caps);
 }
 
