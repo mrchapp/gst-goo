@@ -300,11 +300,6 @@ gst_goo_audio_filter_sink_event (GstPad* pad, GstEvent* event)
 			self->audio_timestamp = GST_CLOCK_TIME_NONE;
 			ret = gst_pad_push_event (self->srcpad, event);
 			break;
-		case GST_EVENT_SEEK:
-			GST_INFO ("Seek Event");
-			self->seek = TRUE;
-			ret = gst_pad_push_event (self->sinkpad, event);
-			break;
 		default:
 			ret = gst_pad_event_default (pad, event);
 			break;
@@ -334,6 +329,11 @@ gst_goo_audio_filter_src_event (GstPad *pad, GstEvent *event)
 			{
 				gst_goo_audio_filter_wait_for_done (self);
 			}
+			ret = gst_pad_push_event (self->sinkpad, event);
+			break;
+		case GST_EVENT_SEEK:
+			GST_INFO ("Seek Event");
+			self->seek = TRUE;
 			ret = gst_pad_push_event (self->sinkpad, event);
 			break;
 		default:
