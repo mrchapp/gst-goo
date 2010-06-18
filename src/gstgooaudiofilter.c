@@ -732,10 +732,13 @@ gst_goo_audio_filter_check_fixed_src_caps_default (GstGooAudioFilter* self)
 static gboolean
 gst_goo_audio_filter_timestamp_buffer_default (GstGooAudioFilter* self, GstBuffer *gst_buffer, OMX_BUFFERHEADERTYPE* buffer)
 {
-	GST_BUFFER_TIMESTAMP (gst_buffer) = gst_goo_timestamp_omx2gst (buffer);
+	self->duration = gst_goo_duration_omx2gst (buffer);
+
+	GST_BUFFER_TIMESTAMP (gst_buffer) = self->audio_timestamp;
+	GST_BUFFER_DURATION (gst_buffer) = self->duration;
 	PRINT_BUFFER (gst_buffer);
 
-	if (self->audio_timestamp != -1)
+	if (self->audio_timestamp != GST_CLOCK_TIME_NONE)
 	{
 		self->audio_timestamp += self->duration;
 	}
