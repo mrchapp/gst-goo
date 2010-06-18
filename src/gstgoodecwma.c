@@ -529,7 +529,6 @@ gst_goo_decwma_init (GstGooDecWma* self, GstGooDecWmaClass* klass)
 	/* Setcaps functions */
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER(self)->sinkpad, gst_goo_decwma_sink_setcaps);
 	gst_pad_set_setcaps_function (GST_GOO_AUDIO_FILTER(self)->srcpad, gst_goo_decwma_src_setcaps);
-	gst_pad_set_event_function (GST_GOO_AUDIO_FILTER(self)->sinkpad, GST_DEBUG_FUNCPTR (gst_goo_decwma_sink_event));
 
 	g_object_set_data (G_OBJECT (GST_GOO_AUDIO_FILTER (self)->component), "gst", self);
 	g_object_set_data (G_OBJECT (self), "goo", GST_GOO_AUDIO_FILTER (self)->component);
