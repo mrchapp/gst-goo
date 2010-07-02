@@ -680,7 +680,7 @@ gst_goo_decmp3_init (GstGooDecMp3* self, GstGooDecMp3Class* klass)
 
         /* deactivate dasf-mode by default */
 		g_object_set (G_OBJECT (component), "dasf-mode", FALSE,
-					  "frame-mode", FALSE,
+					  "frame-mode", TRUE,
 					  NULL);
 
         /* component default parameters */
@@ -767,9 +767,6 @@ gst_goo_decmp3_sink_setcaps (GstPad *pad, GstCaps *caps)
 	gst_structure_get_int (structure, "channels", &channels);
 	gst_structure_get_int (structure, "layer", &layer);
 	gst_structure_get_int (structure, "mpegaudioversion", &mpegaudioversion);
-
-	if (gst_goo_util_structure_is_parsed (structure))
-		g_object_set (G_OBJECT (self), "process-mode", 0, NULL);
 
 	factor = 0.02 * channels * sample_rate;
 	GST_GOO_AUDIO_FILTER (self)->duration =
